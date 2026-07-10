@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from pydantic import BaseModel
 from database import get_connection
 
 app = FastAPI(
@@ -8,14 +9,20 @@ app = FastAPI(
 )
 
 
-@app.get("/", summary="🏠 Bosh sahifa")
+class Customer(BaseModel):
+    name: str
+    phone: str
+    address: str
+
+
+@app.get("/")
 def home():
     return {
         "message": "SAFE HOME SERVICES ERP ishlayapti"
     }
 
 
-@app.get("/db-test", summary="🗄️ Ma'lumotlar bazasini tekshirish")
+@app.get("/db-test")
 def db_test():
     conn = get_connection()
     cur = conn.cursor()
@@ -35,30 +42,34 @@ def db_test():
 # MIJOZLAR
 # =========================
 
-@app.post("/customers", summary="👤 Mijoz qo'shish")
-def add_customer(
-    name: str,
-    phone: str,
-    address: str
-):
+@app.post("/customers")
+def add_customer(customer: Customer):
+
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
         INSERT INTO customers (name, phone, address)
         VALUES (%s, %s, %s)
-    """, (name, phone, address))
+    """, (
+        customer.name,
+        customer.phone,
+        customer.address
+    ))
 
     conn.commit()
 
     cur.close()
     conn.close()
 
-    return {"message": "Mijoz qo'shildi"}
+    return {
+        "message": "Mijoz qo'shildi"
+    }
 
 
-@app.get("/customers", summary="📋 Mijozlar ro'yxati")
+@app.get("/customers")
 def get_customers():
+
     conn = get_connection()
     cur = conn.cursor()
 
@@ -85,38 +96,25 @@ def get_customers():
             "created_at": str(row[5])
         })
 
-    return customers
-
-
-# =========================
-# MAHSULOTLAR
+    return customers# =========================
+# MIJOZ O'ZGARTIRISH
 # =========================
 
-@app.post("/products", summary="📦 Mahsulot qo'shish")
-def add_product(
-    name: str,
-    model: str,
-    serial_number: str,
-    purchase_price: float,
-    sale_price: float,
-    quantity: int,
-    warranty_months: int
-):
+@app.put("/customers/{customer_id}")
+def update_customer(customer_id: int, customer: Customer):
+
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
-        INSERT INTO products
-        (name, model, serial_number, purchase_price, sale_price, quantity, warranty_months)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        UPDATE customers
+        SET name=%s, phone=%s, address=%s
+        WHERE id=%s
     """, (
-        name,
-        model,
-        serial_number,
-        purchase_price,
-        sale_price,
-        quantity,
-        warranty_months
+        customer.name,
+        customer.phone,
+        customer.address,
+        customer_id
     ))
 
     conn.commit()
@@ -124,47 +122,31 @@ def add_product(
     cur.close()
     conn.close()
 
-    return {"message": "Mahsulot qo'shildi"}
+    return {
+        "message": "Mijoz yangilandi"
+    }
 
 
-@app.get("/products", summary="📦 Mahsulotlar ro'yxati")
-def get_products():
+# =========================
+# MIJOZ O'CHIRISH
+# =========================
+
+@app.delete("/customers/{customer_id}")
+def delete_customer(customer_id: int):
+
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT
-            id,
-            name,
-            model,
-            serial_number,
-            purchase_price,
-            sale_price,
-            quantity,
-            warranty_months,
-            created_at
-        FROM products
-        ORDER BY id DESC
-    """)
+        DELETE FROM customers
+        WHERE id=%s
+    """, (customer_id,))
 
-    rows = cur.fetchall()
+    conn.commit()
 
     cur.close()
     conn.close()
 
-    products = []
-
-    for row in rows:
-        products.append({
-            "id": row[0],
-            "name": row[1],
-            "model": row[2],
-            "serial_number": row[3],
-            "purchase_price": float(row[4]),
-            "sale_price": float(row[5]),
-            "quantity": row[6],
-            "warranty_months": row[7],
-            "created_at": str(row[8])
-        })
-
-    return products
+    return {
+        "message": "Mijoz o'chirildi"
+    }

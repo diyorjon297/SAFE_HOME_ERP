@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 
 function Customers() {
+
   const [customers, setCustomers] = useState(() => {
     const saved = localStorage.getItem("customers");
     return saved ? JSON.parse(saved) : [];
@@ -8,6 +9,7 @@ function Customers() {
 
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -17,9 +19,14 @@ function Customers() {
     debt: "",
   });
 
+
   useEffect(() => {
-    localStorage.setItem("customers", JSON.stringify(customers));
+    localStorage.setItem(
+      "customers",
+      JSON.stringify(customers)
+    );
   }, [customers]);
+
 
   const handleChange = (e) => {
     setForm({
@@ -28,19 +35,39 @@ function Customers() {
     });
   };
 
+
   const saveCustomer = () => {
-    if (form.name.trim() === "") {
+
+    if (!form.name.trim()) {
       alert("Mijoz ismini kiriting");
       return;
     }
 
-    setCustomers([
-      ...customers,
-      {
-        ...form,
-        id: Date.now(),
-      },
-    ]);
+
+    if (editId) {
+
+      setCustomers(
+        customers.map((item) =>
+          item.id === editId
+            ? { ...form, id: editId }
+            : item
+        )
+      );
+
+      setEditId(null);
+
+    } else {
+
+      setCustomers([
+        ...customers,
+        {
+          ...form,
+          id: Date.now(),
+        },
+      ]);
+
+    }
+
 
     setForm({
       name: "",
@@ -53,108 +80,99 @@ function Customers() {
     setOpen(false);
   };
 
+
+  const editCustomer = (item) => {
+
+    setForm({
+      name: item.name,
+      phone: item.phone,
+      address: item.address,
+      object: item.object,
+      debt: item.debt,
+    });
+
+    setEditId(item.id);
+    setOpen(true);
+
+  };
+
+
+  const deleteCustomer = (id) => {
+
+    if (confirm("Mijoz o'chirilsinmi?")) {
+
+      setCustomers(
+        customers.filter(
+          (item) => item.id !== id
+        )
+      );
+
+    }
+
+  };
+
+
   const totalDebt = customers.reduce(
-    (sum, item) => sum + (Number(item.debt) || 0),
+    (sum, item) =>
+      sum + (Number(item.debt) || 0),
     0
   );
 
-  const filteredCustomers = customers.filter((item) => {
-    return (
-      item.name?.toLowerCase().includes(search.toLowerCase()) ||
-      item.phone?.includes(search)
-    );
-  });
+
+  const filteredCustomers = customers.filter(
+    (item) =>
+      item.name
+        .toLowerCase()
+        .includes(search.toLowerCase()) ||
+      item.phone.includes(search)
+  );
+
 
   return (
-    <div style={{ padding: "30px" }}>
+
+    <div style={{ padding:"30px" }}>
+
       <h1>👥 Mijozlar</h1>
-      <p>SAFE HOME SERVICES ERP</p>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-          gap: "20px",
-          margin: "25px 0",
+      <h3>
+        Jami mijoz: {customers.length}
+      </h3>
+
+      <h3>
+        Umumiy qarz:
+        {" "}
+        {totalDebt.toLocaleString()} so'm
+      </h3>
+
+
+      <input
+        placeholder="🔍 Qidirish"
+        value={search}
+        onChange={(e)=>setSearch(e.target.value)}
+      />
+
+
+      <button
+        onClick={()=>{
+          setOpen(!open);
+          setEditId(null);
         }}
       >
-        <div
-          style={{
-            background: "#2563EB",
-            color: "#fff",
-            padding: "20px",
-            borderRadius: "12px",
-          }}
-        >
-          <h3>Jami mijozlar</h3>
-          <h2>{customers.length}</h2>
-        </div>
+        + Yangi mijoz
+      </button>
 
-        <div
-          style={{
-            background: "#16A34A",
-            color: "#fff",
-            padding: "20px",
-            borderRadius: "12px",
-          }}
-        >
-          <h3>Qarzdorlik</h3>
-          <h2>{totalDebt.toLocaleString()} so'm</h2>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: "20px",
-        }}
-      >
-        <input
-          placeholder="🔍 Mijoz qidirish..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            width: "300px",
-            padding: "10px",
-            borderRadius: "8px",
-            border: "1px solid #ccc",
-          }}
-        />
-
-        <button
-          onClick={() => setOpen(!open)}
-          style={{
-            padding: "10px 20px",
-            borderRadius: "8px",
-            border: "none",
-            background: "#1976d2",
-            color: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          + Yangi mijoz
-        </button>
-      </div>
 
       {open && (
-        <div
-          style={{
-            background: "#fff",
-            padding: "20px",
-            borderRadius: "12px",
-            marginBottom: "20px",
-            boxShadow: "0 3px 10px rgba(0,0,0,.08)",
-            display: "grid",
-            gap: "10px",
-          }}
-        >
+
+        <div>
+
           <input
             name="name"
-            placeholder="Mijoz ismi"
+            placeholder="F.I.Sh"
             value={form.name}
             onChange={handleChange}
           />
+
 
           <input
             name="phone"
@@ -163,12 +181,14 @@ function Customers() {
             onChange={handleChange}
           />
 
+
           <input
             name="address"
             placeholder="Manzil"
             value={form.address}
             onChange={handleChange}
           />
+
 
           <input
             name="object"
@@ -177,6 +197,7 @@ function Customers() {
             onChange={handleChange}
           />
 
+
           <input
             name="debt"
             placeholder="Qarz"
@@ -184,82 +205,84 @@ function Customers() {
             onChange={handleChange}
           />
 
-          <button
-            onClick={saveCustomer}
-            style={{
-              background: "#16A34A",
-              color: "#fff",
-              border: "none",
-              padding: "12px",
-              borderRadius: "8px",
-              cursor: "pointer",
-            }}
-          >
-            Saqlash
+
+          <button onClick={saveCustomer}>
+            {editId ? "Yangilash" : "Saqlash"}
           </button>
+
         </div>
+
       )}
 
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          background: "#fff",
-          boxShadow: "0 3px 10px rgba(0,0,0,.08)",
-        }}
-      >
-        <thead
-          style={{
-            background: "#2563EB",
-            color: "#fff",
-          }}
-        >
+
+
+      <table border="1" width="100%">
+
+        <thead>
+
           <tr>
-            <th style={{ padding: "12px" }}>F.I.Sh</th>
-            <th style={{ padding: "12px" }}>Telefon</th>
-            <th style={{ padding: "12px" }}>Manzil</th>
-            <th style={{ padding: "12px" }}>Obyekt</th>
-            <th style={{ padding: "12px" }}>Qarz</th>
+            <th>F.I.Sh</th>
+            <th>Telefon</th>
+            <th>Manzil</th>
+            <th>Obyekt</th>
+            <th>Qarz</th>
+            <th>Amal</th>
           </tr>
+
         </thead>
 
+
         <tbody>
-          {filteredCustomers.length === 0 ? (
-            <tr>
-              <td
-                colSpan="5"
-                style={{
-                  textAlign: "center",
-                  padding: "25px",
-                }}
-              >
-                Hozircha mijoz yo‘q
+
+        {
+          filteredCustomers.map((item)=>(
+
+            <tr key={item.id}>
+
+              <td>{item.name}</td>
+
+              <td>{item.phone}</td>
+
+              <td>{item.address}</td>
+
+              <td>{item.object}</td>
+
+              <td>
+                {Number(item.debt).toLocaleString()} so'm
               </td>
-            </tr>
-          ) : (
-            filteredCustomers.map((item) => (
-              <tr key={item.id}>
-                <td style={{ padding: "12px" }}>{item.name}</td>
-                <td style={{ padding: "12px" }}>{item.phone}</td>
-                <td style={{ padding: "12px" }}>{item.address}</td>
-                <td style={{ padding: "12px" }}>{item.object}</td>
-                <td
-                  style={{
-                    padding: "12px",
-                    color:
-                      Number(item.debt) > 0 ? "#DC2626" : "#16A34A",
-                    fontWeight: "bold",
-                  }}
+
+
+              <td>
+
+                <button
+                  onClick={()=>editCustomer(item)}
                 >
-                  {Number(item.debt).toLocaleString()} so'm
-                </td>
-              </tr>
-            ))
-          )}
+                  ✏️
+                </button>
+
+
+                <button
+                  onClick={()=>deleteCustomer(item.id)}
+                >
+                  🗑
+                </button>
+
+              </td>
+
+            </tr>
+
+          ))
+        }
+
         </tbody>
+
       </table>
+
+
     </div>
+
   );
+
 }
 
 export default Customers;

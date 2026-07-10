@@ -1,48 +1,206 @@
+import { useEffect, useState } from "react";
+import API from "../api";
+
 function Customers() {
+
+  const [customers, setCustomers] = useState([]);
+
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    address: "",
+  });
+
+  const [editId, setEditId] = useState(null);
+
+
+  const getCustomers = async () => {
+    try {
+      const res = await API.get("/customers");
+      setCustomers(res.data);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+
+  useEffect(() => {
+    getCustomers();
+  }, []);
+
+
+  const handleChange = (e) => {
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+
+  const saveCustomer = async (e) => {
+    e.preventDefault();
+
+    try {
+
+      if (editId) {
+
+        await API.put(`/customers/${editId}`, form);
+
+      } else {
+
+        await API.post("/customers", form);
+
+      }
+
+
+      setForm({
+        name: "",
+        phone: "",
+        address: "",
+      });
+
+      setEditId(null);
+
+      getCustomers();
+
+
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+
+  const editCustomer = (customer) => {
+
+    setEditId(customer.id);
+
+    setForm({
+      name: customer.name,
+      phone: customer.phone,
+      address: customer.address,
+    });
+
+  };
+
+
+  const deleteCustomer = async (id) => {
+
+    if (!confirm("Mijozni o'chirishni xohlaysizmi?")) return;
+
+    try {
+
+      await API.delete(`/customers/${id}`);
+
+      getCustomers();
+
+    } catch(error) {
+
+      console.log(error);
+
+    }
+
+  };
+
+
   return (
-    <div style={{ padding: "40px" }}>
-      <h1>👥 Mijozlar</h1>
 
-      <button style={{
-        padding: "10px 20px",
-        borderRadius: "8px",
-        border: "none",
-        background: "#1976d2",
-        color: "white",
-        cursor: "pointer"
-      }}>
-        + Yangi mijoz
-      </button>
+    <div style={{ padding:"30px" }}>
 
-      <table style={{
-        width: "100%",
-        marginTop: "30px",
-        borderCollapse: "collapse"
-      }}>
-        <thead>
-          <tr>
-            <th>F.I.Sh</th>
-            <th>Telefon</th>
-            <th>Manzil</th>
-            <th>Obyekt</th>
-            <th>Qarz</th>
-          </tr>
-        </thead>
+      <h1>Mijozlar</h1>
 
-        <tbody>
-          <tr>
-            <td colSpan="5" style={{
-              textAlign: "center",
-              padding: "20px"
-            }}>
-              Hozircha mijoz yo‘q
-            </td>
-          </tr>
-        </tbody>
 
-      </table>
+      <form onSubmit={saveCustomer}>
+
+        <input
+          name="name"
+          placeholder="F.I.Sh"
+          value={form.name}
+          onChange={handleChange}
+        />
+
+
+        <input
+          name="phone"
+          placeholder="Telefon"
+          value={form.phone}
+          onChange={handleChange}
+        />
+
+
+        <input
+          name="address"
+          placeholder="Manzil"
+          value={form.address}
+          onChange={handleChange}
+        />
+
+
+        <button type="submit">
+
+          {editId ? "Yangilash" : "Saqlash"}
+
+        </button>
+
+
+      </form>
+
+
+      <hr/>
+
+
+      <h2>Mijozlar ro'yxati</h2>
+
+
+      {
+        customers.map((c)=>(
+
+          <div 
+            key={c.id}
+            style={{
+              marginBottom:"15px",
+              border:"1px solid #ccc",
+              padding:"10px"
+            }}
+          >
+
+            <b>{c.name}</b>
+            <br/>
+
+            Telefon: {c.phone}
+            <br/>
+
+            Manzil: {c.address}
+            <br/>
+
+            Qarz: {c.debt} so'm
+
+            <br/><br/>
+
+
+            <button onClick={()=>editCustomer(c)}>
+              ✏️ Tahrirlash
+            </button>
+
+
+            <button 
+              onClick={()=>deleteCustomer(c.id)}
+              style={{marginLeft:"10px"}}
+            >
+              🗑 O'chirish
+            </button>
+
+
+          </div>
+
+        ))
+      }
+
+
     </div>
+
   );
+
 }
+
 
 export default Customers;
