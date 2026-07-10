@@ -1,0 +1,48 @@
+function Customers() {
+  return (
+    <div style={{ padding: "40px" }}>
+      <h1>👥 Mijozlar</h1>
+
+      <button style={{
+        padding: "10px 20px",
+        borderRadius: "8px",
+        border: "none",
+        background: "#1976d2",
+        color: "white",
+        cursor: "pointer"
+      }}>
+        + Yangi mijoz
+      </button>
+
+      <table style={{
+        width: "100%",
+        marginTop: "30px",
+        borderCollapse: "collapse"
+      }}>
+        <thead>
+          <tr>
+            <th>F.I.Sh</th>
+            <th>Telefon</th>
+            <th>Manzil</th>
+            <th>Obyekt</th>
+            <th>Qarz</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td colSpan="5" style={{
+              textAlign: "center",
+              padding: "20px"
+            }}>
+              Hozircha mijoz yo‘q
+            </td>
+          </tr>
+        </tbody>
+
+      </table>
+    </div>
+  );
+}
+
+export default Customers;
