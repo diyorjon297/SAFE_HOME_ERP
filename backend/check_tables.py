@@ -1,18 +1,20 @@
-from database import get_connection
+from database import engine
+from sqlalchemy import inspect
 
-conn = get_connection()
-cur = conn.cursor()
 
-cur.execute("""
-SELECT column_name
-FROM information_schema.columns
-WHERE table_name='customers';
-""")
+try:
+    inspector = inspect(engine)
 
-rows = cur.fetchall()
+    tables = inspector.get_table_names()
 
-for row in rows:
-    print(row[0])
+    print("DATABASE TABLES:")
+    
+    if not tables:
+        print("Hech qanday jadval topilmadi.")
+    else:
+        for table in tables:
+            print("-", table)
 
-cur.close()
-conn.close()
+except Exception as e:
+    print("TABLE CHECK ERROR")
+    print(e)

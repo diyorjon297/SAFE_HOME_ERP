@@ -3,15 +3,25 @@ import {
   FaUserCircle,
   FaSearch,
   FaCalendarAlt,
+  FaSignOutAlt,
 } from "react-icons/fa";
 
+import { useNavigate } from "react-router-dom";
+
 function Header() {
+  const navigate = useNavigate();
+
   const today = new Date().toLocaleDateString("uz-UZ", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  const handleLogout = () => {
+    localStorage.removeItem("safe_home_logged_in");
+    navigate("/login", { replace: true });
+  };
 
   return (
     <header
@@ -114,6 +124,26 @@ function Header() {
             </div>
           </div>
         </div>
+
+        <button
+          onClick={handleLogout}
+          title="Chiqish"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            border: "none",
+            background: "#FEE2E2",
+            color: "#DC2626",
+            padding: "10px 14px",
+            borderRadius: "10px",
+            fontWeight: "600",
+            cursor: "pointer",
+          }}
+        >
+          <FaSignOutAlt />
+          Chiqish
+        </button>
       </div>
     </header>
   );

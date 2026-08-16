@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SAFE HOME ERP</string>
+    <string name="title_activity_main">SAFE HOME ERP</string>
+    <string name="package_name">uz.safehome.erp</string>
+    <string name="custom_url_scheme">uz.safehome.erp</string>
+</resources>

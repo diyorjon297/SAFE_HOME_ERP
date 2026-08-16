@@ -1,8 +1,10 @@
 import { NavLink } from "react-router-dom";
+
 import {
   FaHome,
   FaUsers,
   FaBoxOpen,
+  FaVideo,
   FaShoppingCart,
   FaClipboardList,
   FaWarehouse,
@@ -11,19 +13,87 @@ import {
   FaChartBar,
   FaCog,
   FaShieldAlt,
+  FaHandHoldingUsd,
 } from "react-icons/fa";
 
 const menu = [
-  { title: "Dashboard", path: "/", icon: <FaHome /> },
-  { title: "Mijozlar", path: "/customers", icon: <FaUsers /> },
-  { title: "Mahsulotlar", path: "/products", icon: <FaBoxOpen /> },
-  { title: "Sotuvlar", path: "/sales", icon: <FaShoppingCart /> },
-  { title: "Buyurtmalar", path: "/orders", icon: <FaClipboardList /> },
-  { title: "Ombor", path: "/warehouse", icon: <FaWarehouse /> },
-  { title: "Servis", path: "/services", icon: <FaTools /> },
-  { title: "Xarajatlar", path: "/expenses", icon: <FaMoneyBillWave /> },
-  { title: "Hisobotlar", path: "/reports", icon: <FaChartBar /> },
-  { title: "Sozlamalar", path: "/settings", icon: <FaCog /> },
+  {
+    title: "Dashboard",
+    path: "/",
+    icon: <FaHome />,
+  },
+
+  {
+    title: "Mijozlar",
+    path: "/customers",
+    icon: <FaUsers />,
+  },
+
+  {
+    title: "Mahsulotlar",
+    path: "/products",
+    icon: <FaBoxOpen />,
+  },
+
+  {
+    title: "Kameralar",
+    path: "/cameras",
+    icon: <FaVideo />,
+  },
+
+  {
+    title: "Sotuvlar",
+    path: "/sales",
+    icon: <FaShoppingCart />,
+  },
+
+  {
+    title: "Qarzlar",
+    path: "/debts",
+    icon: <FaHandHoldingUsd />,
+  },
+
+  {
+    title: "Moliya",
+    path: "/finance",
+    icon: <FaMoneyBillWave />,
+  },
+
+  {
+    title: "Buyurtmalar",
+    path: "/orders",
+    icon: <FaClipboardList />,
+  },
+
+  {
+    title: "Ombor",
+    path: "/warehouse",
+    icon: <FaWarehouse />,
+  },
+
+  {
+    title: "Servis",
+    path: "/services",
+    icon: <FaTools />,
+  },
+
+  {
+    title: "Xarajatlar",
+    path: "/expenses",
+    icon: <FaMoneyBillWave />,
+  },
+
+  {
+    title: "Hisobotlar",
+    path: "/reports",
+    icon: <FaChartBar />,
+  },
+
+  {
+    title: "Sozlamalar",
+    path: "/settings",
+    icon: <FaCog />,
+  },
 ];
 
 function Sidebar() {
@@ -31,27 +101,33 @@ function Sidebar() {
     <aside
       style={{
         width: "260px",
-        minHeight: "100vh",
+        minWidth: "260px",
+        height: "100vh",
         background: "#0F172A",
         color: "#fff",
         display: "flex",
         flexDirection: "column",
-        boxShadow: "2px 0 10px rgba(0,0,0,0.15)",
+        boxShadow: "0 0 20px rgba(0,0,0,.25)",
+        position: "sticky",
+        top: 0,
       }}
     >
       <div
         style={{
           padding: "25px",
-          borderBottom: "1px solid #334155",
           textAlign: "center",
+          borderBottom: "1px solid #334155",
         }}
       >
-        <FaShieldAlt size={42} color="#38BDF8" />
+        <FaShieldAlt
+          size={46}
+          color="#38BDF8"
+        />
 
         <h2
           style={{
-            marginTop: "10px",
-            marginBottom: "5px",
+            marginTop: 12,
+            marginBottom: 5,
           }}
         >
           SAFE HOME
@@ -59,7 +135,6 @@ function Sidebar() {
 
         <p
           style={{
-            fontSize: "13px",
             color: "#94A3B8",
             margin: 0,
           }}
@@ -71,7 +146,8 @@ function Sidebar() {
       <div
         style={{
           flex: 1,
-          padding: "20px 15px",
+          overflowY: "auto",
+          padding: "15px",
         }}
       >
         {menu.map((item) => (
@@ -81,19 +157,30 @@ function Sidebar() {
             style={({ isActive }) => ({
               display: "flex",
               alignItems: "center",
-              gap: "14px",
-              padding: "14px 18px",
+              gap: "15px",
+              padding: "14px 16px",
               marginBottom: "10px",
               borderRadius: "12px",
               textDecoration: "none",
               color: "#fff",
-              background: isActive ? "#2563EB" : "transparent",
-              fontWeight: isActive ? "700" : "500",
-              transition: "0.25s",
+              background: isActive
+                ? "#2563EB"
+                : "transparent",
+              transition: "0.2s",
+              fontWeight: 500,
             })}
           >
-            <span style={{ fontSize: "18px" }}>{item.icon}</span>
-            <span>{item.title}</span>
+            <span
+              style={{
+                fontSize: "20px",
+              }}
+            >
+              {item.icon}
+            </span>
+
+            <span>
+              {item.title}
+            </span>
           </NavLink>
         ))}
       </div>
@@ -101,10 +188,10 @@ function Sidebar() {
       <div
         style={{
           padding: "18px",
-          borderTop: "1px solid #334155",
           textAlign: "center",
+          borderTop: "1px solid #334155",
           color: "#94A3B8",
-          fontSize: "12px",
+          fontSize: "14px",
         }}
       >
         SAFE HOME SERVICES ERP
