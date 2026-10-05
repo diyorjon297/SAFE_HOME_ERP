@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import API from "../api";
 
 import {
@@ -41,6 +42,7 @@ import MoneyOffIcon from "@mui/icons-material/MoneyOff";
 function Sales() {
   const [sales, setSales] = useState([]);
   const [products, setProducts] = useState([]);
+  const [services, setServices] = useState([]);
   const [customers, setCustomers] = useState([]);
 
   const [search, setSearch] = useState("");
@@ -51,7 +53,9 @@ function Sales() {
   const [items, setItems] = useState([
     {
       id: Date.now(),
+      item_type: "product",
       product_id: "",
+      service_id: "",
       quantity: 1,
       price: "",
     },
@@ -74,6 +78,7 @@ function Sales() {
   useEffect(() => {
     loadSales();
     loadProducts();
+    loadServices();
     loadCustomers();
   }, []);
 
@@ -94,6 +99,18 @@ function Sales() {
     } catch (err) {
       console.log("Products yuklash xatosi:", err);
       setProducts([]);
+    }
+  };
+
+  const loadServices = async () => {
+    try {
+      const res = await API.get("/services/");
+      setServices(
+        Array.isArray(res.data) ? res.data : []
+      );
+    } catch (err) {
+      console.log("Services yuklash xatosi:", err);
+      setServices([]);
     }
   };
 
@@ -198,7 +215,9 @@ function Sales() {
       ...prev,
       {
         id: Date.now() + Math.random(),
+        item_type: "product",
         product_id: "",
+        service_id: "",
         quantity: 1,
         price: "",
       },
@@ -215,6 +234,48 @@ function Sales() {
     });
   };
 
+  const getService = (serviceId) =>
+    services.find(
+      (service) =>
+        Number(service.id) === Number(serviceId)
+    );
+
+  const changeItemType = (itemId, type) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              item_type: type,
+              product_id: "",
+              service_id: "",
+              quantity: 1,
+              price: "",
+            }
+          : item
+      )
+    );
+  };
+
+  const selectService = (itemId, serviceId) => {
+    const service = getService(serviceId);
+
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              item_type: "service",
+              service_id: serviceId,
+              product_id: "",
+              quantity: 1,
+              price: service?.sale_price ?? "",
+            }
+          : item
+      )
+    );
+  };
+
   const selectProduct = (itemId, productId) => {
     const product = getProduct(productId);
 
@@ -223,7 +284,9 @@ function Sales() {
         item.id === itemId
           ? {
               ...item,
+              item_type: "product",
               product_id: productId,
+              service_id: "",
               quantity: 1,
               price: product?.sale_price ?? "",
             }
@@ -273,13 +336,31 @@ function Sales() {
 
   const estimatedProfit = items.reduce(
     (sum, item) => {
-      const product = getProduct(item.product_id);
-
       const quantity =
         Number(item.quantity) || 0;
 
       const salePrice =
         Number(item.price) || 0;
+
+      if (item.item_type === "service") {
+        const service = getService(item.service_id);
+
+        const costPrice =
+          Number(
+            service?.purchase_price ??
+            service?.cost_price ??
+            0
+          );
+
+        return (
+          sum +
+          (salePrice - costPrice) *
+            quantity
+        );
+      }
+
+      const product =
+        getProduct(item.product_id);
 
       const purchasePrice =
         Number(product?.purchase_price) || 0;
@@ -357,7 +438,9 @@ function Sales() {
     setItems([
       {
         id: Date.now() + Math.random(),
+        item_type: "product",
         product_id: "",
+        service_id: "",
         quantity: 1,
         price: "",
       },
@@ -372,64 +455,58 @@ function Sales() {
 
     const validItems = items.filter(
       (item) =>
-        item.product_id &&
+        (
+          item.item_type === "service"
+            ? item.service_id
+            : item.product_id
+        ) &&
         Number(item.quantity) > 0
     );
 
     if (!validItems.length) {
-      alert("Kamida bitta mahsulot qo'shing");
-      return;
-    }
-
-    const productIds = validItems.map(
-      (item) => Number(item.product_id)
-    );
-
-    if (
-      new Set(productIds).size !==
-      productIds.length
-    ) {
-      alert(
-        "Bir xil mahsulotni ikki marta qo'shib bo'lmaydi."
-      );
+      alert("Kamida bitta mahsulot yoki xizmat qo'shing");
       return;
     }
 
     for (const item of validItems) {
-      const product = getProduct(
-        item.product_id
-      );
+      const quantity =
+        Number(item.quantity) || 0;
+
+      const price =
+        Number(item.price);
+
+      if (!Number.isFinite(price) || price < 0) {
+        alert("Narxni tekshiring");
+        return;
+      }
+
+      if (item.item_type === "service") {
+        const service = getService(item.service_id);
+
+        if (!service) {
+          alert("Xizmat topilmadi");
+          return;
+        }
+
+        continue;
+      }
+
+      const product =
+        getProduct(item.product_id);
 
       if (!product) {
         alert("Mahsulot topilmadi");
         return;
       }
 
-      const requested =
-        Number(item.quantity) || 0;
-
       const available =
         Number(product.quantity) || 0;
 
-      if (requested > available) {
+      if (quantity > available) {
         alert(
-          `${product.name} uchun omborda yetarli mahsulot yo'q.\n\nMavjud: ${available} ${getUnit(
-            product
-          )}\nKerak: ${requested} ${getUnit(
-            product
-          )}`
-        );
-        return;
-      }
-
-      const price = Number(item.price);
-
-      if (
-        !Number.isFinite(price) ||
-        price < 0
-      ) {
-        alert(
-          `${product.name} uchun narxni tekshiring`
+          `${product.name} uchun omborda yetarli mahsulot yo'q.\n\n` +
+          `Mavjud: ${available} ${getUnit(product)}\n` +
+          `Kerak: ${quantity} ${getUnit(product)}`
         );
         return;
       }
@@ -439,14 +516,30 @@ function Sales() {
       const payload = {
         customer_id: Number(customerId),
         payment_status: paymentStatus,
+
         items: validItems.map((item) => ({
-          product_id: Number(
-            item.product_id
-          ),
-          quantity: Number(item.quantity),
-          price: Number(item.price),
+          item_type:
+            item.item_type || "product",
+
+          product_id:
+            item.item_type === "service"
+              ? null
+              : Number(item.product_id),
+
+          service_id:
+            item.item_type === "service"
+              ? Number(item.service_id)
+              : null,
+
+          quantity:
+            Number(item.quantity),
+
+          price:
+            Number(item.price),
         })),
       };
+
+      console.log("SALES PAYLOAD:", payload);
 
       const res = await API.post(
         "/sales/batch",
@@ -454,7 +547,8 @@ function Sales() {
       );
 
       alert(
-        `Komplekt muvaffaqiyatli sotildi!\n\nJami: ${money(
+        `Sotuv muvaffaqiyatli saqlandi!\n\n` +
+        `Jami: ${money(
           res.data.total || grandTotal
         )} so'm`
       );
@@ -464,6 +558,8 @@ function Sales() {
       await loadSales();
       await loadProducts();
       await loadCustomers();
+      await loadServices();
+
     } catch (err) {
       console.log(err);
 
@@ -473,11 +569,71 @@ function Sales() {
       alert(
         typeof detail === "string"
           ? detail
-          : "Komplektni saqlashda xatolik"
+          : "Sotuvni saqlashda xatolik"
       );
     }
   };
 
+
+  // =========================
+  // EXCEL EXPORT
+  // =========================
+
+  const exportSalesExcel = () => {
+
+    if (!sales.length) {
+      alert("Eksport qilish uchun sotuvlar mavjud emas");
+      return;
+    }
+
+    const data = sales.map((sale) => ({
+      ID: sale.id || "",
+      Sana:
+        sale.created_at ||
+        sale.date ||
+        "",
+      Mijoz:
+        sale.customer_name ||
+        sale.customer?.name ||
+        "Noma'lum",
+      Telefon:
+        sale.customer_phone ||
+        sale.customer?.phone ||
+        "",
+      "To'lov holati":
+        sale.payment_status ||
+        sale.status ||
+        "",
+      "Jami":
+        Number(
+          sale.total ||
+          sale.grand_total ||
+          0
+        ),
+      "Foyda":
+        Number(
+          sale.profit ||
+          0
+        ),
+    }));
+
+    const worksheet =
+      XLSX.utils.json_to_sheet(data);
+
+    const workbook =
+      XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      "Sotuvlar"
+    );
+
+    XLSX.writeFile(
+      workbook,
+      "Sotuvlar.xlsx"
+    );
+  };
   const columns = [
     {
       field: "id",
@@ -859,7 +1015,7 @@ function Sales() {
                   startIcon={<AddIcon />}
                   onClick={addItem}
                 >
-                  Mahsulot qo'shish
+                  Pozitsiya qo'shish
                 </Button>
               </Stack>
             </Stack>
@@ -880,7 +1036,21 @@ function Sales() {
                   md: 6,
                 }}
               >
-                <TextField
+                <Button
+              variant="contained"
+              onClick={exportSalesExcel}
+              sx={{
+                background: "#15803d",
+                "&:hover": {
+                  background: "#166534",
+                },
+                fontWeight: 700,
+                ml: 1,
+              }}
+            >
+              Excel
+            </Button>
+            <TextField
                   select
                   fullWidth
                   label="Mijoz"
@@ -906,7 +1076,7 @@ function Sales() {
                       >
                         {customer.name}
                         {customer.phone
-                          ? ` — ${customer.phone}`
+                          ? ` вЂ” ${customer.phone}`
                           : ""}
                       </MenuItem>
                     )
@@ -934,15 +1104,15 @@ function Sales() {
                   }
                 >
                   <MenuItem value="Naqd">
-                    💵 Naqd
+                    рџ’µ Naqd
                   </MenuItem>
 
                   <MenuItem value="Karta">
-                    💳 Karta
+                    рџ’і Karta
                   </MenuItem>
 
                   <MenuItem value="Qarz">
-                    🔴 Qarz
+                    рџ”ґ Qarz
                   </MenuItem>
                 </TextField>
               </Grid>
@@ -983,9 +1153,10 @@ function Sales() {
                     >
                       {items.filter(
                         (x) =>
-                          x.product_id
+                          x.product_id ||
+                          x.service_id
                       ).length}{" "}
-                      mahsulot
+                      pozitsiya
                     </Typography>
                   </Stack>
                 </Box>
@@ -995,141 +1166,204 @@ function Sales() {
             {/* ITEMS */}
 
             <Stack spacing={2}>
-              {items.map(
-                (item, index) => {
-                  const product =
-                    getProduct(
-                      item.product_id
-                    );
+              {items.map((item, index) => {
+                const product = getProduct(item.product_id);
+                const service = getService(item.service_id);
 
-                  const unit =
-                    getUnit(product);
+                const unit =
+                  item.item_type === "service"
+                    ? "xizmat"
+                    : getUnit(product);
 
-                  const quantity =
-                    Number(
-                      item.quantity
-                    ) || 0;
+                const quantity = Number(item.quantity) || 0;
+                const price = Number(item.price) || 0;
+                const lineTotal = quantity * price;
 
-                  const price =
-                    Number(
-                      item.price
-                    ) || 0;
-
-                  const lineTotal =
-                    quantity * price;
-
-                  return (
-                    <Paper
-                      key={item.id}
-                      sx={{
-                        p: 2.5,
-                        borderRadius: 3,
-                        border:
-                          "1px solid #e2e8f0",
-                        boxShadow:
-                          "0 4px 15px rgba(15,23,42,.04)",
+                return (
+                  <Paper
+                    key={item.id}
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 3,
+                      border: "1px solid #e2e8f0",
+                      boxShadow:
+                        "0 4px 15px rgba(15,23,42,.04)",
+                    }}
+                  >
+                    <Stack
+                      direction={{
+                        xs: "column",
+                        md: "row",
+                      }}
+                      spacing={2}
+                      alignItems={{
+                        xs: "stretch",
+                        md: "center",
                       }}
                     >
-                      <Stack
-                        direction={{
-                          xs: "column",
-                          md: "row",
-                        }}
-                        spacing={2}
-                        alignItems={{
-                          xs: "stretch",
-                          md: "center",
+                      <Box
+                        sx={{
+                          minWidth: 40,
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "#eff6ff",
+                          color: "#2563eb",
+                          fontWeight: 800,
                         }}
                       >
-                        <Box
-                          sx={{
-                            minWidth: 40,
-                            width: 40,
-                            height: 40,
-                            borderRadius:
-                              "50%",
-                            display: "flex",
-                            alignItems:
-                              "center",
-                            justifyContent:
-                              "center",
-                            background:
-                              "#eff6ff",
-                            color:
-                              "#2563eb",
-                            fontWeight: 800,
-                          }}
-                        >
-                          {index + 1}
-                        </Box>
+                        {index + 1}
+                      </Box>
 
+                      <TextField
+                        select
+                        label="Turi"
+                        value={item.item_type || "product"}
+                        onChange={(e) =>
+                          changeItemType(
+                            item.id,
+                            e.target.value
+                          )
+                        }
+                        sx={{
+                          width: {
+                            xs: "100%",
+                            md: 150,
+                          },
+                        }}
+                      >
+                        <MenuItem value="product">
+                          Mahsulot
+                        </MenuItem>
+
+                        <MenuItem value="service">
+                          Xizmat
+                        </MenuItem>
+                      </TextField>
+
+                      {item.item_type === "service" ? (
+                        <TextField
+                          select
+                          fullWidth
+                          label="Xizmat"
+                          value={item.service_id || ""}
+                          onChange={(e) =>
+                            selectService(
+                              item.id,
+                              e.target.value
+                            )
+                          }
+                          sx={{ flex: 2 }}
+                        >
+                          {services.map((service) => (
+                            <MenuItem
+                              key={service.id}
+                              value={service.id}
+                            >
+                              <Stack
+                                direction="row"
+                                justifyContent="space-between"
+                                width="100%"
+                                gap={2}
+                              >
+                                <span>
+                                  {service.name}
+                                </span>
+
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  {money(
+                                    service.sale_price
+                                  )}{" "}
+                                  so'm
+                                </Typography>
+                              </Stack>
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
                         <TextField
                           select
                           fullWidth
                           label="Mahsulot"
-                          value={
-                            item.product_id
-                          }
+                          value={item.product_id || ""}
                           onChange={(e) =>
                             selectProduct(
                               item.id,
                               e.target.value
                             )
                           }
-                          sx={{
-                            flex: 2,
-                          }}
+                          sx={{ flex: 2 }}
                         >
-                          {products.map(
-                            (product) => (
-                              <MenuItem
-                                key={
-                                  product.id
-                                }
-                                value={
-                                  product.id
-                                }
+                          {products.map((product) => (
+                            <MenuItem
+                              key={product.id}
+                              value={product.id}
+                            >
+                              <Stack
+                                direction="row"
+                                justifyContent="space-between"
+                                width="100%"
+                                gap={2}
                               >
-                                <Stack
-                                  direction="row"
-                                  justifyContent="space-between"
-                                  width="100%"
-                                  gap={2}
+                                <span>
+                                  {product.name}
+                                </span>
+
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
                                 >
-                                  <span>
-                                    {
-                                      product.name
-                                    }
-                                  </span>
-
-                                  <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                  >
-                                    Qoldiq:{" "}
-                                    {
-                                      product.quantity
-                                    }{" "}
-                                    {
-                                      getUnit(
-                                        product
-                                      )
-                                    }
-                                  </Typography>
-                                </Stack>
-                              </MenuItem>
-                            )
-                          )}
+                                  Qoldiq:{" "}
+                                  {product.quantity}{" "}
+                                  {getUnit(product)}
+                                </Typography>
+                              </Stack>
+                            </MenuItem>
+                          ))}
                         </TextField>
+                      )}
 
+                      <TextField
+                        label={`Miqdor (${unit})`}
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          changeQuantity(
+                            item.id,
+                            e.target.value
+                          )
+                        }
+                        sx={{
+                          width: {
+                            xs: "100%",
+                            md: 150,
+                          },
+                        }}
+                        inputProps={{
+                          min: 0.01,
+                          step:
+                            item.item_type === "service"
+                              ? 1
+                              : unit === "metr"
+                              ? 0.1
+                              : 1,
+                        }}
+                      />
+
+                      {item.item_type === "product" &&
+                      product?.name?.toLowerCase().includes("kabel") ? (
                         <TextField
-                          label={`Miqdor (${unit})`}
-                          type="number"
-                          value={
-                            item.quantity
-                          }
+                          select
+                          label={`Narx / ${unit}`}
+                          value={item.price}
                           onChange={(e) =>
-                            changeQuantity(
+                            changePrice(
                               item.id,
                               e.target.value
                             )
@@ -1137,25 +1371,35 @@ function Sales() {
                           sx={{
                             width: {
                               xs: "100%",
-                              md: 150,
+                              md: 180,
                             },
                           }}
-                          inputProps={{
-                            min: 0.01,
-                            step:
-                              unit ===
-                              "metr"
-                                ? 0.1
-                                : 1,
-                          }}
-                        />
+                        >
+                          <MenuItem value={4000}>
+                            4 000 so'm / metr
+                          </MenuItem>
 
+                          <MenuItem value={5000}>
+                            5 000 so'm / metr
+                          </MenuItem>
+
+                          <MenuItem value={6000}>
+                            6 000 so'm / metr
+                          </MenuItem>
+
+                          <MenuItem value={7000}>
+                            7 000 so'm / metr
+                          </MenuItem>
+
+                          <MenuItem value="">
+                            Boshqa narx
+                          </MenuItem>
+                        </TextField>
+                      ) : (
                         <TextField
                           label={`Narx / ${unit}`}
                           type="number"
-                          value={
-                            item.price
-                          }
+                          value={item.price}
                           onChange={(e) =>
                             changePrice(
                               item.id,
@@ -1169,68 +1413,57 @@ function Sales() {
                             },
                           }}
                           InputProps={{
-                            endAdornment:
-                              (
-                                <InputAdornment position="end">
-                                  so'm
-                                </InputAdornment>
-                              ),
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                so'm
+                              </InputAdornment>
+                            ),
                           }}
                         />
+                      )}
 
-                        <Box
-                          sx={{
-                            minWidth: {
-                              xs: "100%",
-                              md: 180,
-                            },
-                            p: 1.5,
-                            borderRadius: 2,
-                            background:
-                              "#f0fdf4",
-                            border:
-                              "1px solid #bbf7d0",
-                          }}
+                      <Box
+                        sx={{
+                          minWidth: {
+                            xs: "100%",
+                            md: 180,
+                          },
+                          p: 1.5,
+                          borderRadius: 2,
+                          background: "#f0fdf4",
+                          border:
+                            "1px solid #bbf7d0",
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
                         >
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                          >
-                            Qator jami
-                          </Typography>
+                          Qator jami
+                        </Typography>
 
-                          <Typography
-                            fontWeight={800}
-                            color="success.main"
-                          >
-                            {money(
-                              lineTotal
-                            )}{" "}
-                            so'm
-                          </Typography>
-                        </Box>
-
-                        <IconButton
-                          color="error"
-                          onClick={() =>
-                            removeItem(
-                              item.id
-                            )
-                          }
-                          disabled={
-                            items.length ===
-                            1
-                          }
+                        <Typography
+                          fontWeight={800}
+                          color="success.main"
                         >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Stack>
-                    </Paper>
-                  );
-                }
-              )}
+                          {money(lineTotal)} so'm
+                        </Typography>
+                      </Box>
+
+                      <IconButton
+                        color="error"
+                        onClick={() =>
+                          removeItem(item.id)
+                        }
+                        disabled={items.length === 1}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Stack>
+                  </Paper>
+                );
+              })}
             </Stack>
-
             <Divider sx={{ my: 3 }} />
 
             {/* TOTAL */}
@@ -1514,7 +1747,7 @@ function Sales() {
               fontWeight: 800,
             }}
           >
-            👤 Yangi mijoz qo'shish
+            рџ‘¤ Yangi mijoz qo'shish
           </DialogTitle>
 
           <DialogContent>
@@ -1610,3 +1843,7 @@ function Sales() {
 }
 
 export default Sales;
+
+
+
+

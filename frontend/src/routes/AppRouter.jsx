@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+﻿import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import MainLayout from "../layouts/MainLayout";
 
@@ -8,67 +8,35 @@ import Products from "../pages/Products";
 import Cameras from "../pages/Cameras";
 import Sales from "../pages/Sales";
 import Warehouse from "../pages/Warehouse";
+import DailyOperations from "../pages/DailyOperations";
 
-
-function AppRouter(){
-
+function AppRouter() {
   return (
-
     <BrowserRouter>
-
       <Routes>
-
-
         <Route element={<MainLayout />}>
 
+          <Route path="/" element={<Dashboard />} />
+
+          <Route path="/customers" element={<Customers />} />
+
+          <Route path="/products" element={<Products />} />
+
+          <Route path="/cameras" element={<Cameras />} />
+
+          <Route path="/sales" element={<Sales />} />
+
+          <Route path="/warehouse" element={<Warehouse />} />
 
           <Route
-            path="/"
-            element={<Dashboard />}
+            path="/daily-operations"
+            element={<DailyOperations />}
           />
-
-
-          <Route
-            path="/customers"
-            element={<Customers />}
-          />
-
-
-          <Route
-            path="/products"
-            element={<Products />}
-          />
-
-
-          <Route
-            path="/cameras"
-            element={<Cameras />}
-          />
-
-
-          <Route
-            path="/sales"
-            element={<Sales />}
-          />
-
-
-          <Route
-            path="/warehouse"
-            element={<Warehouse />}
-          />
-
 
         </Route>
-
-
       </Routes>
-
-
     </BrowserRouter>
-
   );
-
 }
-
 
 export default AppRouter;

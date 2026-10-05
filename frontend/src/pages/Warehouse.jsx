@@ -1,848 +1,1405 @@
-import { useEffect, useMemo, useState } from "react";
-import API from "../api";
+import React, { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 
-import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Grid,
-  TextField,
-  InputAdornment,
-  Chip,
-  Stack,
-  Paper,
-  LinearProgress,
-  Divider,
-  Tabs,
-  Tab,
-} from "@mui/material";
+const API = "http://127.0.0.1:8001";
 
-import {
-  Warehouse as WarehouseIcon,
-  Inventory,
-  Warning,
-  CheckCircle,
-  Search,
-  TrendingUp,
-  AttachMoney,
-  ArrowDownward,
-  ArrowUpward,
-  History,
-} from "@mui/icons-material";
+const sections = [
+  "Kameralar",
+  "NVR / DVR",
+  "Xotira",
+  "Tarmoq",
+  "Kabel",
+  "Domofon",
+  "Access Control",
+  "Quvvat",
+  "Boshqa",
+];
 
-import { DataGrid } from "@mui/x-data-grid";
+const emptyForm = {
+  name: "",
+  brand: "",
+  model: "",
+  category: "Kameralar",
+  serial_number: "",
+  purchase_price_usd: "",
+  purchase_price: "",
+  sale_price: "",
+  quantity: "",
+  unit: "dona",
+  warranty_month: "",
+  supplier: "",
+  note: "",
+};
+
+function numberValue(value) {
+  var n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatNumber(value) {
+  return numberValue(value).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
+}
+
+function moneyUZS(value) {
+  return formatNumber(value) + " so'm";
+}
+
+function moneyUSD(value) {
+  return "$" + formatNumber(value);
+}
+
+function getCategory(product) {
+  return product.category || "Boshqa";
+}
+
+function getBrand(product) {
+  return product.brand || "Brendsiz";
+}
 
 export default function Warehouse() {
   const [products, setProducts] = useState([]);
-  const [history, setHistory] = useState([]);
-  const [search, setSearch] = useState("");
-  const [historySearch, setHistorySearch] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [tab, setTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const loadProducts = async () => {
+  const [selectedSection, setSelectedSection] = useState("Kameralar");
+  const [selectedBrand, setSelectedBrand] = useState("");
+  const [search, setSearch] = useState("");
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+
+  async function loadProducts() {
     try {
       setLoading(true);
-      const res = await API.get("/products/");
-      setProducts(Array.isArray(res.data) ? res.data : []);
-    } catch (error) {
-      console.error("Warehouse products error:", error);
-      setProducts([]);
+      setError("");
+
+      const response = await axios.get(API + "/products/");
+
+      if (Array.isArray(response.data)) {
+        setProducts(response.data);
+      } else {
+        setProducts([]);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Ombor ma'lumotlarini yuklashda xatolik yuz berdi.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const loadHistory = async () => {
-    try {
-      setHistoryLoading(true);
-      const res = await API.get("/warehouse/history");
-      setHistory(Array.isArray(res.data) ? res.data : []);
-    } catch (error) {
-      console.error("Warehouse history error:", error);
-      setHistory([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
-
-  useEffect(() => {
+  useEffect(function () {
     loadProducts();
-    loadHistory();
   }, []);
 
-  const getUnit = (product) =>
-    product?.unit ||
-    product?.measurement_unit ||
-    product?.unit_name ||
-    "dona";
-
-  const getQuantity = (product) =>
-    Number(product?.quantity || 0);
-
-  const formatMoney = (value) =>
-    `${Number(value || 0).toLocaleString("uz-UZ")} so'm`;
-
-  const formatDate = (value) => {
-    if (!value) return "-";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) return value;
-
-    return date.toLocaleString("uz-UZ");
-  };
-
-  const totalProducts = products.length;
-
-  const totalQuantity = products.reduce(
-    (sum, product) => sum + getQuantity(product),
-    0
-  );
-
-  const lowProducts = products.filter(
-    (product) =>
-      getQuantity(product) > 0 &&
-      getQuantity(product) <= 5
-  );
-
-  const emptyProducts = products.filter(
-    (product) => getQuantity(product) <= 0
-  );
-
-  const availableProducts = products.filter(
-    (product) => getQuantity(product) > 5
-  );
-
-  const totalInventoryValue = products.reduce(
-    (sum, product) =>
-      sum +
-      getQuantity(product) *
-        Number(product?.purchase_price || 0),
-    0
-  );
-
-  const totalIn = history
-    .filter((item) => {
-      const action = String(item.action || "").toUpperCase();
-
-      return action === "IN" || action === "KIRIM";
-    })
-    .reduce(
-      (sum, item) => sum + Number(item.quantity || 0),
-      0
-    );
-
-  const totalOut = history
-    .filter((item) => {
-      const action = String(item.action || "").toUpperCase();
-
-      return action === "OUT" || action === "CHIQIM";
-    })
-    .reduce(
-      (sum, item) => sum + Number(item.quantity || 0),
-      0
-    );
-
-  const filteredProducts = useMemo(() => {
-    const q = search.toLowerCase().trim();
-
-    if (!q) return products;
-
-    return products.filter((product) => {
-      const text = `
-        ${product?.name || ""}
-        ${product?.brand || ""}
-        ${product?.model || ""}
-        ${product?.category || ""}
-        ${product?.serial_number || ""}
-      `.toLowerCase();
-
-      return text.includes(q);
+  function updateForm(field, value) {
+    setForm(function (old) {
+      return {
+        ...old,
+        [field]: value,
+      };
     });
-  }, [products, search]);
+  }
 
-  const filteredHistory = useMemo(() => {
-    const q = historySearch.toLowerCase().trim();
-
-    if (!q) return history;
-
-    return history.filter((item) => {
-      const text = `
-        ${item?.product_name || ""}
-        ${item?.action || ""}
-        ${item?.unit || ""}
-        ${item?.product_id || ""}
-      `.toLowerCase();
-
-      return text.includes(q);
+  function openAdd() {
+    setForm({
+      ...emptyForm,
+      category: selectedSection,
     });
-  }, [history, historySearch]);
+    setEditingProduct(null);
+    setShowAdd(true);
+  }
 
-  const getStatus = (quantity) => {
-    if (quantity <= 0) {
-      return (
-        <Chip
-          label="Tugagan"
-          color="error"
-          size="small"
-          icon={<Warning />}
-        />
-      );
+  function openEdit(product) {
+    setEditingProduct(product);
+
+    setForm({
+      name: product.name || "",
+      brand: product.brand || "",
+      model: product.model || "",
+      category: product.category || "Boshqa",
+      serial_number: product.serial_number || "",
+      purchase_price_usd:
+        product.purchase_price_usd === null ||
+        product.purchase_price_usd === undefined
+          ? ""
+          : product.purchase_price_usd,
+      purchase_price:
+        product.purchase_price === null ||
+        product.purchase_price === undefined
+          ? ""
+          : product.purchase_price,
+      sale_price:
+        product.sale_price === null || product.sale_price === undefined
+          ? ""
+          : product.sale_price,
+      quantity:
+        product.quantity === null || product.quantity === undefined
+          ? ""
+          : product.quantity,
+      unit: product.unit || "dona",
+      warranty_month:
+        product.warranty_month === null ||
+        product.warranty_month === undefined
+          ? ""
+          : product.warranty_month,
+      supplier: product.supplier || "",
+      note: product.note || "",
+    });
+
+    setShowAdd(false);
+  }
+
+  function closeForms() {
+    setShowAdd(false);
+    setEditingProduct(null);
+    setForm(emptyForm);
+  }
+
+  function buildPayload() {
+    return {
+      name: form.name.trim(),
+      brand: form.brand.trim(),
+      model: form.model.trim(),
+      category: form.category,
+      serial_number: form.serial_number.trim(),
+      purchase_price_usd:
+        form.purchase_price_usd === ""
+          ? 0
+          : numberValue(form.purchase_price_usd),
+      purchase_price:
+        form.purchase_price === "" ? 0 : numberValue(form.purchase_price),
+      sale_price: form.sale_price === "" ? 0 : numberValue(form.sale_price),
+      quantity: form.quantity === "" ? 0 : numberValue(form.quantity),
+      unit: form.unit || "dona",
+      warranty_month:
+        form.warranty_month === "" ? 0 : numberValue(form.warranty_month),
+      supplier: form.supplier.trim(),
+      note: form.note.trim(),
+      is_active: true,
+    };
+  }
+
+  async function saveProduct(event) {
+    event.preventDefault();
+
+    if (!form.name.trim()) {
+      alert("Mahsulot nomini kiriting.");
+      return;
     }
 
-    if (quantity <= 5) {
-      return (
-        <Chip
-          label="Kam"
-          color="warning"
-          size="small"
-          icon={<Warning />}
-        />
-      );
+    try {
+      setSaving(true);
+      setError("");
+
+      const payload = buildPayload();
+
+      if (editingProduct) {
+        await axios.put(
+          API + "/products/" + editingProduct.id,
+          payload
+        );
+      } else {
+        await axios.post(API + "/products/", payload);
+      }
+
+      await loadProducts();
+      closeForms();
+    } catch (err) {
+      console.error(err);
+
+      var message = "Mahsulotni saqlashda xatolik yuz berdi.";
+
+      if (
+        err &&
+        err.response &&
+        err.response.data &&
+        err.response.data.detail
+      ) {
+        message =
+          "Xatolik: " +
+          (typeof err.response.data.detail === "string"
+            ? err.response.data.detail
+            : JSON.stringify(err.response.data.detail));
+      }
+
+      setError(message);
+      alert(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteProduct(product) {
+    var ok = window.confirm(
+      '"' +
+        (product.name || "Mahsulot") +
+        '" mahsulotini ombordan chiqarishga ishonchingiz komilmi?'
+    );
+
+    if (!ok) {
+      return;
     }
 
-    return (
-      <Chip
-        label="Mavjud"
-        color="success"
-        size="small"
-        icon={<CheckCircle />}
-      />
-    );
-  };
+    try {
+      await axios.delete(API + "/products/" + product.id);
+      await loadProducts();
+    } catch (err) {
+      console.error(err);
+      alert("Mahsulotni o'chirishda xatolik yuz berdi.");
+    }
+  }
 
-  const productColumns = [
-    {
-      field: "id",
-      headerName: "ID",
-      width: 70,
-    },
-    {
-      field: "name",
-      headerName: "Mahsulot",
-      flex: 1.2,
-      minWidth: 180,
-    },
-    {
-      field: "brand",
-      headerName: "Brend",
-      width: 120,
-    },
-    {
-      field: "model",
-      headerName: "Model",
-      flex: 1,
-      minWidth: 160,
-    },
-    {
-      field: "category",
-      headerName: "Kategoriya",
-      width: 140,
-    },
-    {
-      field: "quantity",
-      headerName: "Qoldiq",
-      width: 130,
-      renderCell: (params) => {
-        const quantity = getQuantity(params.row);
+  const filteredProducts = useMemo(
+    function () {
+      var text = search.trim().toLowerCase();
 
+      return products.filter(function (product) {
+        var matchesSection =
+          selectedSection === "Barcha" ||
+          getCategory(product) === selectedSection;
+
+        var matchesBrand =
+          !selectedBrand || getBrand(product) === selectedBrand;
+
+        var searchable = [
+          product.name,
+          product.brand,
+          product.model,
+          product.category,
+          product.serial_number,
+          product.supplier,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        var matchesSearch = !text || searchable.includes(text);
+
+        return matchesSection && matchesBrand && matchesSearch;
+      });
+    },
+    [products, selectedSection, selectedBrand, search]
+  );
+
+  const brands = useMemo(
+    function () {
+      var result = {};
+
+      products
+        .filter(function (product) {
+          return getCategory(product) === selectedSection;
+        })
+        .forEach(function (product) {
+          var brand = getBrand(product);
+          result[brand] = true;
+        });
+
+      return Object.keys(result).sort();
+    },
+    [products, selectedSection]
+  );
+
+  const stats = useMemo(
+    function () {
+      var active = products.filter(function (product) {
+        return product.is_active !== false;
+      });
+
+      var stockCount = active.reduce(function (sum, product) {
+        return sum + numberValue(product.quantity);
+      }, 0);
+
+      var purchaseTotal = active.reduce(function (sum, product) {
         return (
-          <Typography
-            fontWeight={700}
-            color={
-              quantity <= 0
-                ? "error.main"
-                : quantity <= 5
-                ? "warning.main"
-                : "success.main"
-            }
-          >
-            {quantity} {getUnit(params.row)}
-          </Typography>
+          sum +
+          numberValue(product.quantity) *
+            numberValue(product.purchase_price)
         );
-      },
-    },
-    {
-      field: "purchase_price",
-      headerName: "Kirim narxi",
-      width: 150,
-      renderCell: (params) =>
-        formatMoney(params.value),
-    },
-    {
-      field: "sale_price",
-      headerName: "Sotuv narxi",
-      width: 150,
-      renderCell: (params) =>
-        formatMoney(params.value),
-    },
-    {
-      field: "status",
-      headerName: "Holat",
-      width: 130,
-      sortable: false,
-      renderCell: (params) =>
-        getStatus(getQuantity(params.row)),
-    },
-  ];
+      }, 0);
 
-  const historyColumns = [
-    {
-      field: "id",
-      headerName: "ID",
-      width: 70,
-    },
-    {
-      field: "product_id",
-      headerName: "Mahsulot ID",
-      width: 110,
-    },
-    {
-      field: "product_name",
-      headerName: "Mahsulot",
-      flex: 1.5,
-      minWidth: 220,
-    },
-    {
-      field: "action",
-      headerName: "Amal",
-      width: 130,
-      renderCell: (params) => {
-        const action = String(
-          params.value || ""
-        ).toUpperCase();
-
-        const isIn =
-          action === "IN" ||
-          action === "KIRIM";
-
+      var saleTotal = active.reduce(function (sum, product) {
         return (
-          <Chip
-            icon={
-              isIn ? (
-                <ArrowDownward />
-              ) : (
-                <ArrowUpward />
-              )
-            }
-            label={isIn ? "KIRIM" : "CHIQIM"}
-            color={isIn ? "success" : "error"}
-            size="small"
-          />
+          sum +
+          numberValue(product.quantity) * numberValue(product.sale_price)
         );
-      },
-    },
-    {
-      field: "quantity",
-      headerName: "Miqdor",
-      width: 130,
-      renderCell: (params) => (
-        <Typography fontWeight={700}>
-          {Number(params.value || 0).toLocaleString(
-            "uz-UZ"
-          )}{" "}
-          {params.row?.unit || "dona"}
-        </Typography>
-      ),
-    },
-    {
-      field: "unit",
-      headerName: "Birlik",
-      width: 100,
-    },
-    {
-      field: "date",
-      headerName: "Sana",
-      flex: 1,
-      minWidth: 190,
-      renderCell: (params) =>
-        formatDate(params.value),
-    },
-  ];
+      }, 0);
 
-  const statCards = [
-    {
-      title: "Jami mahsulot",
-      value: totalProducts.toLocaleString("uz-UZ"),
-      icon: <Inventory />,
-      subtitle: "Mahsulot turlari",
-      color: "#2563eb",
-      background:
-        "linear-gradient(135deg,#eff6ff,#dbeafe)",
+      return {
+        products: active.length,
+        stockCount: stockCount,
+        purchaseTotal: purchaseTotal,
+        saleTotal: saleTotal,
+        profit: saleTotal - purchaseTotal,
+      };
     },
-    {
-      title: "Jami qoldiq",
-      value: totalQuantity.toLocaleString("uz-UZ"),
-      icon: <WarehouseIcon />,
-      subtitle: "Ombordagi birliklar",
-      color: "#7c3aed",
-      background:
-        "linear-gradient(135deg,#f5f3ff,#ede9fe)",
-    },
-    {
-      title: "Kam qolgan",
-      value: lowProducts.length,
-      icon: <Warning />,
-      subtitle: "5 yoki undan kam",
-      color: "#d97706",
-      background:
-        "linear-gradient(135deg,#fffbeb,#fef3c7)",
-    },
-    {
-      title: "Tugagan",
-      value: emptyProducts.length,
-      icon: <TrendingUp />,
-      subtitle: "Qayta xarid kerak",
-      color: "#dc2626",
-      background:
-        "linear-gradient(135deg,#fef2f2,#fee2e2)",
-    },
-  ];
+    [products]
+  );
+
+  function calculateProductProfit(product) {
+    var qty = numberValue(product.quantity);
+    var purchase = numberValue(product.purchase_price);
+    var sale = numberValue(product.sale_price);
+
+    return qty * (sale - purchase);
+  }
 
   return (
-    <Box sx={{ minHeight: "100%", pb: 4 }}>
-      <Box
-        sx={{
-          mb: 3,
-          p: 3,
-          borderRadius: 4,
-          background:
-            "linear-gradient(135deg,#0f172a,#1e3a8a)",
-          color: "white",
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f5f7fb",
+        padding: "24px",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "1500px",
+          margin: "0 auto",
         }}
       >
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          justifyContent="space-between"
-          alignItems={{
-            xs: "flex-start",
-            sm: "center",
+        <div
+          style={{
+            background:
+              "linear-gradient(135deg, #020617 0%, #0f172a 50%, #1d4ed8 100%)",
+            borderRadius: "24px",
+            padding: "28px",
+            color: "#fff",
+            boxShadow: "0 18px 45px rgba(15,23,42,0.18)",
+            marginBottom: "20px",
           }}
-          spacing={2}
         >
-          <Stack
-            direction="row"
-            spacing={1.5}
-            alignItems="center"
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "20px",
+              flexWrap: "wrap",
+            }}
           >
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 3,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background:
-                  "rgba(255,255,255,0.14)",
-              }}
-            >
-              <WarehouseIcon />
-            </Box>
+            <div>
+              <div
+                style={{
+                  fontSize: "14px",
+                  opacity: 0.75,
+                  marginBottom: "6px",
+                }}
+              >
+                SAFE HOME ERP
+              </div>
 
-            <Box>
-              <Typography
-                variant="h4"
-                fontWeight={800}
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "32px",
+                  fontWeight: 800,
+                }}
               >
                 Ombor
-              </Typography>
+              </h1>
 
-              <Typography sx={{ opacity: 0.75 }}>
-                SAFE HOME SERVICES ERP
-              </Typography>
-            </Box>
-          </Stack>
+              <div
+                style={{
+                  marginTop: "8px",
+                  opacity: 0.82,
+                  fontSize: "15px",
+                }}
+              >
+                Barcha mahsulotlar, tannarx va sotuv narxlarining yagona
+                manbasi
+              </div>
+            </div>
 
-          <Chip
-            icon={<CheckCircle />}
-            label={`${availableProducts.length} ta mahsulot mavjud`}
-            sx={{
-              color: "white",
-              background:
-                "rgba(255,255,255,0.12)",
-            }}
-          />
-        </Stack>
-      </Box>
-
-      <Grid
-        container
-        spacing={2.5}
-        mb={3}
-      >
-        {statCards.map((item) => (
-          <Grid
-            item
-            xs={12}
-            sm={6}
-            md={3}
-            key={item.title}
-          >
-            <Card
-              sx={{
-                height: "100%",
-                borderRadius: 4,
-                background: item.background,
+            <button
+              type="button"
+              onClick={openAdd}
+              style={{
+                border: "0",
+                borderRadius: "14px",
+                padding: "14px 22px",
+                background: "#fff",
+                color: "#0f172a",
+                fontWeight: 800,
+                fontSize: "15px",
+                cursor: "pointer",
               }}
             >
-              <CardContent>
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
+              + Mahsulot qo'shish
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div
+            style={{
+              background: "#fef2f2",
+              color: "#b91c1c",
+              border: "1px solid #fecaca",
+              padding: "14px 18px",
+              borderRadius: "14px",
+              marginBottom: "18px",
+              fontWeight: 600,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+            gap: "14px",
+            marginBottom: "20px",
+          }}
+        >
+          <StatCard
+            title="Mahsulot turlari"
+            value={formatNumber(stats.products)}
+            subtitle="Faol mahsulotlar"
+          />
+
+          <StatCard
+            title="Ombordagi dona"
+            value={formatNumber(stats.stockCount)}
+            subtitle="Jami miqdor"
+          />
+
+          <StatCard
+            title="Tannarx qiymati"
+            value={moneyUZS(stats.purchaseTotal)}
+            subtitle="Ombordagi xarid qiymati"
+          />
+
+          <StatCard
+            title="Sotuv qiymati"
+            value={moneyUZS(stats.saleTotal)}
+            subtitle="Potensial tushum"
+          />
+
+          <StatCard
+            title="Potensial foyda"
+            value={moneyUZS(stats.profit)}
+            subtitle="Sotuv minus tannarx"
+          />
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "20px",
+            padding: "18px",
+            marginBottom: "18px",
+            boxShadow: "0 8px 25px rgba(15,23,42,0.07)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              overflowX: "auto",
+              paddingBottom: "4px",
+            }}
+          >
+            <CategoryButton
+              active={selectedSection === "Barcha"}
+              onClick={function () {
+                setSelectedSection("Barcha");
+                setSelectedBrand("");
+              }}
+              text="Barchasi"
+            />
+
+            {sections.map(function (section) {
+              return (
+                <CategoryButton
+                  key={section}
+                  active={selectedSection === section}
+                  onClick={function () {
+                    setSelectedSection(section);
+                    setSelectedBrand("");
+                  }}
+                  text={section}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {selectedSection !== "Barcha" && brands.length > 0 && (
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "18px",
+              padding: "16px",
+              marginBottom: "18px",
+              boxShadow: "0 8px 25px rgba(15,23,42,0.06)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#64748b",
+                fontWeight: 700,
+                marginBottom: "10px",
+              }}
+            >
+              BRENDLAR
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={function () {
+                  setSelectedBrand("");
+                }}
+                style={brandStyle(!selectedBrand)}
+              >
+                Barchasi
+              </button>
+
+              {brands.map(function (brand) {
+                return (
+                  <button
+                    key={brand}
+                    type="button"
+                    onClick={function () {
+                      setSelectedBrand(brand);
+                    }}
+                    style={brandStyle(selectedBrand === brand)}
+                  >
+                    {brand}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "20px",
+            padding: "18px",
+            marginBottom: "20px",
+            boxShadow: "0 8px 25px rgba(15,23,42,0.07)",
+          }}
+        >
+          <input
+            value={search}
+            onChange={function (event) {
+              setSearch(event.target.value);
+            }}
+            placeholder="Mahsulot, model, brend, serial yoki yetkazib beruvchi bo'yicha qidiring..."
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              border: "1px solid #dbe2ea",
+              borderRadius: "14px",
+              padding: "15px 16px",
+              outline: "none",
+              fontSize: "15px",
+              background: "#f8fafc",
+            }}
+          />
+        </div>
+
+        {loading ? (
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "50px",
+              textAlign: "center",
+              color: "#64748b",
+            }}
+          >
+            Ombor yuklanmoqda...
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "60px 30px",
+              textAlign: "center",
+              boxShadow: "0 8px 25px rgba(15,23,42,0.06)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "42px",
+                marginBottom: "12px",
+              }}
+            >
+              📦
+            </div>
+
+            <h2
+              style={{
+                margin: "0 0 8px",
+                color: "#0f172a",
+              }}
+            >
+              Mahsulot topilmadi
+            </h2>
+
+            <p
+              style={{
+                margin: 0,
+                color: "#64748b",
+              }}
+            >
+              Tanlangan bo'limda hozircha mahsulot yo'q.
+            </p>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(300px, 1fr))",
+              gap: "16px",
+            }}
+          >
+            {filteredProducts.map(function (product) {
+              var qty = numberValue(product.quantity);
+              var purchase = numberValue(product.purchase_price);
+              var sale = numberValue(product.sale_price);
+              var unitProfit = sale - purchase;
+              var margin =
+                sale > 0 ? (unitProfit / sale) * 100 : 0;
+
+              return (
+                <div
+                  key={product.id}
+                  style={{
+                    background: "#fff",
+                    borderRadius: "20px",
+                    padding: "20px",
+                    boxShadow: "0 8px 25px rgba(15,23,42,0.07)",
+                    border: "1px solid #edf1f5",
+                  }}
                 >
-                  <Box>
-                    <Typography
-                      color="text.secondary"
-                      fontWeight={600}
-                    >
-                      {item.title}
-                    </Typography>
-
-                    <Typography
-                      variant="h4"
-                      fontWeight={800}
-                      sx={{
-                        mt: 1,
-                        color: item.color,
-                      }}
-                    >
-                      {item.value}
-                    </Typography>
-
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                    >
-                      {item.subtitle}
-                    </Typography>
-                  </Box>
-
-                  <Box
-                    sx={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: 3,
+                  <div
+                    style={{
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: item.color,
+                      justifyContent: "space-between",
+                      gap: "10px",
                     }}
                   >
-                    {item.icon}
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#64748b",
+                          fontWeight: 700,
+                          marginBottom: "5px",
+                        }}
+                      >
+                        {getCategory(product)}
+                      </div>
 
-      <Card
-        sx={{
-          mb: 3,
-          borderRadius: 4,
-          background:
-            "linear-gradient(135deg,#ecfdf5,#f0fdf4)",
+                      <h3
+                        style={{
+                          margin: 0,
+                          color: "#0f172a",
+                          fontSize: "19px",
+                        }}
+                      >
+                        {product.name || "Nomsiz mahsulot"}
+                      </h3>
+
+                      <div
+                        style={{
+                          marginTop: "5px",
+                          color: "#475569",
+                          fontSize: "14px",
+                        }}
+                      >
+                        {product.brand || ""}
+                        {product.brand && product.model ? " • " : ""}
+                        {product.model || ""}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        background:
+                          qty > 0 ? "#ecfdf5" : "#fef2f2",
+                        color:
+                          qty > 0 ? "#047857" : "#b91c1c",
+                        padding: "7px 10px",
+                        borderRadius: "10px",
+                        height: "fit-content",
+                        fontSize: "12px",
+                        fontWeight: 800,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {formatNumber(qty)} {product.unit || "dona"}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "10px",
+                      marginTop: "18px",
+                    }}
+                  >
+                    <PriceBox
+                      title="Tannarx"
+                      value={moneyUZS(purchase)}
+                    />
+
+                    <PriceBox
+                      title="Sotuv narxi"
+                      value={moneyUZS(sale)}
+                    />
+                  </div>
+
+                  {numberValue(product.purchase_price_usd) > 0 && (
+                    <div
+                      style={{
+                        marginTop: "10px",
+                        padding: "10px 12px",
+                        borderRadius: "12px",
+                        background: "#f8fafc",
+                        fontSize: "13px",
+                        color: "#475569",
+                      }}
+                    >
+                      Xarid USD:{" "}
+                      <strong>
+                        {moneyUSD(product.purchase_price_usd)}
+                      </strong>
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      padding: "12px",
+                      borderRadius: "13px",
+                      background:
+                        unitProfit >= 0 ? "#f0fdf4" : "#fef2f2",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        fontSize: "13px",
+                      }}
+                    >
+                      <span style={{ color: "#64748b" }}>
+                        1 donadan foyda
+                      </span>
+
+                      <strong
+                        style={{
+                          color:
+                            unitProfit >= 0
+                              ? "#15803d"
+                              : "#b91c1c",
+                        }}
+                      >
+                        {moneyUZS(unitProfit)}
+                      </strong>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginTop: "5px",
+                        fontSize: "12px",
+                        color: "#64748b",
+                      }}
+                    >
+                      <span>Marja</span>
+                      <span>{formatNumber(margin)}%</span>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      fontSize: "13px",
+                      color: "#64748b",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <div>
+                      Ombor qiymati:{" "}
+                      <strong style={{ color: "#0f172a" }}>
+                        {moneyUZS(qty * purchase)}
+                      </strong>
+                    </div>
+
+                    <div>
+                      Potensial foyda:{" "}
+                      <strong style={{ color: "#15803d" }}>
+                        {moneyUZS(calculateProductProfit(product))}
+                      </strong>
+                    </div>
+
+                    {numberValue(product.warranty_month) > 0 && (
+                      <div>
+                        Kafolat:{" "}
+                        <strong style={{ color: "#0f172a" }}>
+                          {product.warranty_month} oy
+                        </strong>
+                      </div>
+                    )}
+
+                    {product.supplier && (
+                      <div>
+                        Yetkazib beruvchi:{" "}
+                        <strong style={{ color: "#0f172a" }}>
+                          {product.supplier}
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      marginTop: "16px",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={function () {
+                        openEdit(product);
+                      }}
+                      style={{
+                        flex: 1,
+                        border: "1px solid #cbd5e1",
+                        background: "#f8fafc",
+                        color: "#0f172a",
+                        borderRadius: "12px",
+                        padding: "11px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Tahrirlash
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={function () {
+                        deleteProduct(product);
+                      }}
+                      style={{
+                        border: "1px solid #fecaca",
+                        background: "#fff1f2",
+                        color: "#be123c",
+                        borderRadius: "12px",
+                        padding: "11px 14px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      O'chirish
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {(showAdd || editingProduct) && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(2,6,23,0.58)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px",
+              zIndex: 9999,
+              overflowY: "auto",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "760px",
+                background: "#fff",
+                borderRadius: "24px",
+                padding: "26px",
+                boxSizing: "border-box",
+                boxShadow: "0 25px 70px rgba(0,0,0,0.25)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "20px",
+                }}
+              >
+                <div>
+                  <h2
+                    style={{
+                      margin: 0,
+                      color: "#0f172a",
+                    }}
+                  >
+                    {editingProduct
+                      ? "Mahsulotni tahrirlash"
+                      : "Yangi mahsulot"}
+                  </h2>
+
+                  <div
+                    style={{
+                      marginTop: "5px",
+                      color: "#64748b",
+                      fontSize: "13px",
+                    }}
+                  >
+                    Narx shu yerda saqlanadi va keyinchalik boshqa
+                    modullarda ishlatiladi.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeForms}
+                  style={{
+                    border: 0,
+                    background: "#f1f5f9",
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    fontSize: "20px",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              <form onSubmit={saveProduct}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: "14px",
+                  }}
+                >
+                  <Field
+                    label="Mahsulot nomi *"
+                    value={form.name}
+                    onChange={function (value) {
+                      updateForm("name", value);
+                    }}
+                    placeholder="Masalan: IP Camera 4MP"
+                  />
+
+                  <Field
+                    label="Brend"
+                    value={form.brand}
+                    onChange={function (value) {
+                      updateForm("brand", value);
+                    }}
+                    placeholder="Hikvision / Dahua"
+                  />
+
+                  <Field
+                    label="Model"
+                    value={form.model}
+                    onChange={function (value) {
+                      updateForm("model", value);
+                    }}
+                    placeholder="DS-..."
+                  />
+
+                  <SelectField
+                    label="Bo'lim"
+                    value={form.category}
+                    onChange={function (value) {
+                      updateForm("category", value);
+                    }}
+                    options={sections}
+                  />
+
+                  <Field
+                    label="Tannarx (UZS)"
+                    type="number"
+                    value={form.purchase_price}
+                    onChange={function (value) {
+                      updateForm("purchase_price", value);
+                    }}
+                    placeholder="0"
+                  />
+
+                  <Field
+                    label="Xarid narxi (USD)"
+                    type="number"
+                    value={form.purchase_price_usd}
+                    onChange={function (value) {
+                      updateForm("purchase_price_usd", value);
+                    }}
+                    placeholder="0"
+                  />
+
+                  <Field
+                    label="Sotuv narxi (UZS)"
+                    type="number"
+                    value={form.sale_price}
+                    onChange={function (value) {
+                      updateForm("sale_price", value);
+                    }}
+                    placeholder="0"
+                  />
+
+                  <Field
+                    label="Miqdor"
+                    type="number"
+                    value={form.quantity}
+                    onChange={function (value) {
+                      updateForm("quantity", value);
+                    }}
+                    placeholder="0"
+                  />
+
+                  <SelectField
+                    label="O'lchov birligi"
+                    value={form.unit}
+                    onChange={function (value) {
+                      updateForm("unit", value);
+                    }}
+                    options={[
+                      "dona",
+                      "metr",
+                      "buxta",
+                      "xizmat",
+                      "komplekt",
+                    ]}
+                  />
+
+                  <Field
+                    label="Kafolat (oy)"
+                    type="number"
+                    value={form.warranty_month}
+                    onChange={function (value) {
+                      updateForm("warranty_month", value);
+                    }}
+                    placeholder="12"
+                  />
+
+                  <Field
+                    label="Serial raqam"
+                    value={form.serial_number}
+                    onChange={function (value) {
+                      updateForm("serial_number", value);
+                    }}
+                    placeholder="Agar mavjud bo'lsa"
+                  />
+
+                  <Field
+                    label="Yetkazib beruvchi"
+                    value={form.supplier}
+                    onChange={function (value) {
+                      updateForm("supplier", value);
+                    }}
+                    placeholder="Firma / shaxs"
+                  />
+                </div>
+
+                <div style={{ marginTop: "14px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#334155",
+                      marginBottom: "7px",
+                    }}
+                  >
+                    Izoh
+                  </label>
+
+                  <textarea
+                    value={form.note}
+                    onChange={function (event) {
+                      updateForm("note", event.target.value);
+                    }}
+                    rows={3}
+                    placeholder="Qo'shimcha ma'lumot..."
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "12px",
+                      padding: "12px",
+                      resize: "vertical",
+                      outline: "none",
+                      fontSize: "14px",
+                    }}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "20px",
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "10px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={closeForms}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      background: "#fff",
+                      borderRadius: "12px",
+                      padding: "12px 20px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Bekor qilish
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    style={{
+                      border: 0,
+                      background: "#2563eb",
+                      color: "#fff",
+                      borderRadius: "12px",
+                      padding: "12px 22px",
+                      fontWeight: 800,
+                      cursor: saving ? "not-allowed" : "pointer",
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  >
+                    {saving ? "Saqlanmoqda..." : "Saqlash"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatCard(props) {
+  return (
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: "18px",
+        padding: "18px",
+        boxShadow: "0 8px 25px rgba(15,23,42,0.06)",
+        border: "1px solid #edf1f5",
+      }}
+    >
+      <div
+        style={{
+          color: "#64748b",
+          fontSize: "13px",
+          fontWeight: 700,
         }}
       >
-        <CardContent>
-          <Stack
-            direction="row"
-            spacing={2}
-            alignItems="center"
-          >
-            <AttachMoney color="success" />
+        {props.title}
+      </div>
 
-            <Box>
-              <Typography
-                color="text.secondary"
-                fontWeight={600}
-              >
-                Ombordagi mahsulotlarning kirim qiymati
-              </Typography>
-
-              <Typography
-                variant="h5"
-                fontWeight={800}
-                color="success.main"
-              >
-                {formatMoney(totalInventoryValue)}
-              </Typography>
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Grid
-        container
-        spacing={2}
-        mb={3}
-      >
-        <Grid item xs={12} md={6}>
-          <Card
-            sx={{
-              borderRadius: 4,
-              background:
-                "linear-gradient(135deg,#ecfdf5,#dcfce7)",
-            }}
-          >
-            <CardContent>
-              <Stack
-                direction="row"
-                spacing={2}
-                alignItems="center"
-              >
-                <ArrowDownward color="success" />
-
-                <Box>
-                  <Typography
-                    color="text.secondary"
-                    fontWeight={600}
-                  >
-                    Jami kirim
-                  </Typography>
-
-                  <Typography
-                    variant="h5"
-                    fontWeight={800}
-                    color="success.main"
-                  >
-                    {totalIn.toLocaleString("uz-UZ")}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Card
-            sx={{
-              borderRadius: 4,
-              background:
-                "linear-gradient(135deg,#fef2f2,#fee2e2)",
-            }}
-          >
-            <CardContent>
-              <Stack
-                direction="row"
-                spacing={2}
-                alignItems="center"
-              >
-                <ArrowUpward color="error" />
-
-                <Box>
-                  <Typography
-                    color="text.secondary"
-                    fontWeight={600}
-                  >
-                    Jami chiqim
-                  </Typography>
-
-                  <Typography
-                    variant="h5"
-                    fontWeight={800}
-                    color="error.main"
-                  >
-                    {totalOut.toLocaleString("uz-UZ")}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      <Paper
-        sx={{
-          mb: 2,
-          borderRadius: 4,
-          overflow: "hidden",
+      <div
+        style={{
+          color: "#0f172a",
+          fontSize: "22px",
+          fontWeight: 800,
+          marginTop: "7px",
+          wordBreak: "break-word",
         }}
       >
-        <Tabs
-          value={tab}
-          onChange={(event, newValue) =>
-            setTab(newValue)
-          }
-          variant="fullWidth"
-        >
-          <Tab
-            icon={<Inventory />}
-            iconPosition="start"
-            label="Mahsulotlar"
-          />
+        {props.value}
+      </div>
 
-          <Tab
-            icon={<History />}
-            iconPosition="start"
-            label={`Kirim / Chiqim tarixi (${history.length})`}
-          />
-        </Tabs>
-      </Paper>
+      <div
+        style={{
+          color: "#94a3b8",
+          fontSize: "12px",
+          marginTop: "5px",
+        }}
+      >
+        {props.subtitle}
+      </div>
+    </div>
+  );
+}
 
-      {tab === 0 && (
-        <>
-          <Paper
-            sx={{
-              p: 2,
-              mb: 2,
-              borderRadius: 4,
-            }}
-          >
-            <TextField
-              fullWidth
-              placeholder="Mahsulot, brend, model yoki kategoriya bo'yicha qidirish..."
-              value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search color="primary" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Paper>
+function CategoryButton(props) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      style={{
+        border: props.active ? "1px solid #2563eb" : "1px solid #e2e8f0",
+        background: props.active ? "#eff6ff" : "#fff",
+        color: props.active ? "#1d4ed8" : "#475569",
+        borderRadius: "12px",
+        padding: "11px 15px",
+        fontWeight: 700,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {props.text}
+    </button>
+  );
+}
 
-          <Paper
-            sx={{
-              borderRadius: 4,
-              overflow: "hidden",
-            }}
-          >
-            <Box sx={{ p: 2 }}>
-              <Typography
-                variant="h6"
-                fontWeight={800}
-              >
-                Ombor mahsulotlari
-              </Typography>
+function brandStyle(active) {
+  return {
+    border: active ? "1px solid #2563eb" : "1px solid #e2e8f0",
+    background: active ? "#eff6ff" : "#fff",
+    color: active ? "#1d4ed8" : "#475569",
+    borderRadius: "10px",
+    padding: "8px 12px",
+    fontWeight: 700,
+    cursor: "pointer",
+  };
+}
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-              >
-                Barcha mavjud mahsulotlar va qoldiqlar
-              </Typography>
-            </Box>
+function PriceBox(props) {
+  return (
+    <div
+      style={{
+        background: "#f8fafc",
+        borderRadius: "12px",
+        padding: "11px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "11px",
+          color: "#64748b",
+          fontWeight: 700,
+        }}
+      >
+        {props.title}
+      </div>
 
-            <Divider />
+      <div
+        style={{
+          marginTop: "4px",
+          color: "#0f172a",
+          fontWeight: 800,
+          fontSize: "14px",
+        }}
+      >
+        {props.value}
+      </div>
+    </div>
+  );
+}
 
-            {loading && <LinearProgress />}
+function Field(props) {
+  return (
+    <div>
+      <label
+        style={{
+          display: "block",
+          fontSize: "13px",
+          fontWeight: 700,
+          color: "#334155",
+          marginBottom: "7px",
+        }}
+      >
+        {props.label}
+      </label>
 
-            <DataGrid
-              rows={filteredProducts}
-              columns={productColumns}
-              loading={loading}
-              getRowId={(row) => row.id}
-              autoHeight
-              pageSizeOptions={[10, 25, 50, 100]}
-              initialState={{
-                pagination: {
-                  paginationModel: {
-                    pageSize: 10,
-                    page: 0,
-                  },
-                },
-              }}
-              disableRowSelectionOnClick
-              localeText={{
-                noRowsLabel:
-                  "Mahsulot topilmadi",
-              }}
-              sx={{ border: 0 }}
-            />
-          </Paper>
-        </>
-      )}
+      <input
+        type={props.type || "text"}
+        value={props.value}
+        onChange={function (event) {
+          props.onChange(event.target.value);
+        }}
+        placeholder={props.placeholder || ""}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          border: "1px solid #cbd5e1",
+          borderRadius: "12px",
+          padding: "11px 12px",
+          outline: "none",
+          fontSize: "14px",
+        }}
+      />
+    </div>
+  );
+}
 
-      {tab === 1 && (
-        <>
-          <Paper
-            sx={{
-              p: 2,
-              mb: 2,
-              borderRadius: 4,
-            }}
-          >
-            <TextField
-              fullWidth
-              placeholder="Mahsulot yoki amal bo'yicha qidirish..."
-              value={historySearch}
-              onChange={(e) =>
-                setHistorySearch(e.target.value)
-              }
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search color="primary" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Paper>
+function SelectField(props) {
+  return (
+    <div>
+      <label
+        style={{
+          display: "block",
+          fontSize: "13px",
+          fontWeight: 700,
+          color: "#334155",
+          marginBottom: "7px",
+        }}
+      >
+        {props.label}
+      </label>
 
-          <Paper
-            sx={{
-              borderRadius: 4,
-              overflow: "hidden",
-            }}
-          >
-            <Box sx={{ p: 2 }}>
-              <Typography
-                variant="h6"
-                fontWeight={800}
-              >
-                Ombor tarixi
-              </Typography>
-
-              <Typography
-                variant="body2"
-                color="text.secondary"
-              >
-                Mahsulotlarning kirim va chiqim harakatlari
-              </Typography>
-            </Box>
-
-            <Divider />
-
-            {historyLoading && (
-              <LinearProgress />
-            )}
-
-            <DataGrid
-              rows={filteredHistory}
-              columns={historyColumns}
-              loading={historyLoading}
-              getRowId={(row) => row.id}
-              autoHeight
-              pageSizeOptions={[10, 25, 50, 100]}
-              initialState={{
-                pagination: {
-                  paginationModel: {
-                    pageSize: 10,
-                    page: 0,
-                  },
-                },
-              }}
-              disableRowSelectionOnClick
-              localeText={{
-                noRowsLabel:
-                  "Ombor tarixi mavjud emas",
-              }}
-              sx={{ border: 0 }}
-            />
-          </Paper>
-        </>
-      )}
-    </Box>
+      <select
+        value={props.value}
+        onChange={function (event) {
+          props.onChange(event.target.value);
+        }}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          border: "1px solid #cbd5e1",
+          borderRadius: "12px",
+          padding: "11px 12px",
+          outline: "none",
+          fontSize: "14px",
+          background: "#fff",
+        }}
+      >
+        {props.options.map(function (option) {
+          return (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          );
+        })}
+      </select>
+    </div>
   );
 }

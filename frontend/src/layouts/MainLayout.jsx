@@ -8,31 +8,31 @@ export default function MainLayout() {
   const location = useLocation();
 
   const backgrounds = {
-    "/": "#eef6ff",
-    "/customers": "#f5f0ff",
-    "/products": "#effaf3",
-    "/cameras": "#eef8ff",
-    "/sales": "#fff8e8",
-    "/debts": "#fff1f2",
-    "/finance": "#ecfdf5",
-    "/orders": "#f5f3ff",
-    "/warehouse": "#f0f9ff",
-    "/services": "#f0fdfa",
-    "/expenses": "#fff7ed",
-    "/reports": "#f5f3ff",
+    "/": "#f1f5f9",
+    "/customers": "#f8fafc",
+    "/products": "#f8fafc",
+    "/cameras": "#f8fafc",
+    "/sales": "#f8fafc",
+    "/debts": "#f8fafc",
+    "/finance": "#f8fafc",
+    "/orders": "#f8fafc",
+    "/warehouse": "#f8fafc",
+    "/services": "#f8fafc",
+    "/expenses": "#f8fafc",
+    "/reports": "#f8fafc",
     "/settings": "#f8fafc",
   };
 
   const currentBackground =
-    backgrounds[location.pathname] || "#f5f7fb";
+    backgrounds[location.pathname] || "#f8fafc";
 
   return (
     <Box
       sx={{
         display: "flex",
+        width: "100%",
         minHeight: "100vh",
         background: currentBackground,
-        transition: "background 0.3s ease",
       }}
     >
       <Sidebar />
@@ -40,19 +40,31 @@ export default function MainLayout() {
       <Box
         component="main"
         sx={{
-          flexGrow: 1,
+          flex: 1,
           minWidth: 0,
-          background: currentBackground,
-          transition: "background 0.3s ease",
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <Header />
 
         <Box
           sx={{
-            p: { xs: 2, md: 3 },
-            mt: 8,
-            minHeight: "calc(100vh - 64px)",
+            flex: 1,
+            width: "100%",
+            minWidth: 0,
+            p: {
+              xs: 2,
+              sm: 2.5,
+              md: 3,
+              lg: 3.5,
+            },
+            pt: {
+              xs: 2,
+              sm: 2.5,
+              md: 3,
+            },
             boxSizing: "border-box",
           }}
         >

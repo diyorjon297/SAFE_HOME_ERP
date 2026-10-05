@@ -1,11 +1,21 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
-from database import Base
 from datetime import datetime
 
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    DateTime,
+    Boolean,
+    Text,
+)
 
-# =========================
-# MAHSULOTLAR OMBORI
-# =========================
+from database import Base
+
+
+# =========================================================
+# MAHSULOTLAR — OMBOR
+# =========================================================
 
 class Product(Base):
     __tablename__ = "products"
@@ -41,15 +51,18 @@ class Product(Base):
         nullable=True
     )
 
+    purchase_price_usd = Column(
+        Float,
+        default=0
+    )
+
     purchase_price = Column(
         Float,
-        nullable=True,
         default=0
     )
 
     sale_price = Column(
         Float,
-        nullable=True,
         default=0
     )
 
@@ -68,10 +81,42 @@ class Product(Base):
         default=12
     )
 
+    supplier = Column(
+        String,
+        nullable=True
+    )
 
-# =========================
+    description = Column(
+        Text,
+        nullable=True
+    )
+
+    currency = Column(
+        String,
+        nullable=True,
+        default="UZS"
+    )
+
+    is_active = Column(
+        Boolean,
+        default=True
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
+
+
+# =========================================================
 # MAHSULOT KATALOGI
-# =========================
+# =========================================================
 
 class ProductCatalog(Base):
     __tablename__ = "product_catalog"
@@ -112,10 +157,30 @@ class ProductCatalog(Base):
         default=12
     )
 
+    description = Column(
+        Text,
+        nullable=True
+    )
 
-# =========================
+    specifications = Column(
+        Text,
+        nullable=True
+    )
+
+    is_active = Column(
+        Boolean,
+        default=True
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+
+# =========================================================
 # OMBOR TARIXI
-# =========================
+# =========================================================
 
 class WarehouseHistory(Base):
     __tablename__ = "warehouse_history"
@@ -151,7 +216,76 @@ class WarehouseHistory(Base):
         default="dona"
     )
 
+    price = Column(
+        Float,
+        default=0
+    )
+
+    partner = Column(
+        String,
+        nullable=True
+    )
+
+    note = Column(
+        Text,
+        nullable=True
+    )
+
     date = Column(
         DateTime,
         default=datetime.utcnow
     )
+
+
+# =========================================================
+# YETKAZIB BERUVCHILAR
+# =========================================================
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    name = Column(
+        String,
+        nullable=False
+    )
+
+    phone = Column(
+        String,
+        nullable=True
+    )
+
+    address = Column(
+        String,
+        nullable=True
+    )
+
+    contact_person = Column(
+        String,
+        nullable=True
+    )
+
+    note = Column(
+        Text,
+        nullable=True
+    )
+
+    debt = Column(
+        Float,
+        default=0
+    )
+
+    is_active = Column(
+        Boolean,
+        default=True
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )	

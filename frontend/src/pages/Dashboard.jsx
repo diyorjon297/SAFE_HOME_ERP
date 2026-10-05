@@ -8,14 +8,14 @@ import {
   Typography,
   Avatar,
   Chip,
+  Stack,
+  Grid,
+  Button,
+  LinearProgress,
+  Divider,
   List,
   ListItem,
   ListItemText,
-  Stack,
-  Divider,
-  LinearProgress,
-  Grid,
-  Button,
 } from "@mui/material";
 
 import {
@@ -31,12 +31,15 @@ import {
   ArrowUpward,
   ArrowDownward,
   Refresh,
+  AccountBalanceWallet,
+  Assessment,
+  CheckCircle,
 } from "@mui/icons-material";
 
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -46,7 +49,7 @@ import {
   Cell,
 } from "recharts";
 
-function Dashboard() {
+export default function Dashboard() {
   const [dashboard, setDashboard] = useState({
     customers: 0,
     products: 0,
@@ -54,376 +57,511 @@ function Dashboard() {
     sales: [],
     last_sales: [],
     low_products: [],
+    finance: {},
   });
 
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  const money = (value) => {
+    const number = Number(value ?? 0);
+
+    if (!Number.isFinite(number)) {
+      return "0";
+    }
+
+    return number.toLocaleString("uz-UZ");
+  };
 
   const loadDashboard = async () => {
     try {
       setLoading(true);
 
-      const res = await API.get("/dashboard/");
+      const [dashboardRes, financeRes] = await Promise.all([
+        API.get("/dashboard/"),
+        API.get("/finance/summary"),
+      ]);
+
+      const data = dashboardRes?.data || {};
+      const financeData = financeRes?.data || {};
 
       setDashboard({
-        customers: res.data.customers ?? 0,
-        products: res.data.products ?? 0,
-        warehouse: res.data.warehouse ?? 0,
-        sales: res.data.sales ?? [],
-        last_sales: res.data.last_sales ?? [],
-        low_products: res.data.low_products ?? [],
+        customers: Number(data.customers ?? 0),
+        products: Number(data.products ?? 0),
+        warehouse: Number(data.warehouse ?? 0),
+        sales: Array.isArray(data.sales) ? data.sales : [],
+        last_sales: Array.isArray(data.last_sales)
+          ? data.last_sales
+          : [],
+        low_products: Array.isArray(data.low_products)
+          ? data.low_products
+          : [],
+        finance: financeData,
       });
     } catch (error) {
-      console.log("Dashboard error:", error);
+      console.error("Dashboard yuklashda xato:", error);
+
+      setDashboard((prev) => ({
+        ...prev,
+        sales: [],
+        last_sales: [],
+        low_products: [],
+        finance: {},
+      }));
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
   const sales = dashboard.sales || [];
+  const finance = dashboard.finance || {};
 
   const todaySales = useMemo(() => {
+    const now = new Date();
+
     return sales.filter((item) => {
-      if (!item.date) return false;
+      if (!item?.date) return false;
+
+      const date = new Date(item.date);
+
+      if (Number.isNaN(date.getTime())) {
+        return false;
+      }
 
       return (
-        new Date(item.date).toDateString() ===
-        new Date().toDateString()
+        date.getDate() === now.getDate() &&
+        date.getMonth() === now.getMonth() &&
+        date.getFullYear() === now.getFullYear()
       );
     });
   }, [sales]);
 
   const todayTotal = useMemo(() => {
     return todaySales.reduce(
-      (sum, item) => sum + Number(item.total || 0),
+      (sum, item) => sum + Number(item?.total ?? 0),
       0
     );
   }, [todaySales]);
 
   const todayProfit = useMemo(() => {
     return todaySales.reduce(
-      (sum, item) => sum + Number(item.profit || 0),
+      (sum, item) => sum + Number(item?.profit ?? 0),
       0
     );
   }, [todaySales]);
 
   const totalProfit = useMemo(() => {
     return sales.reduce(
-      (sum, item) => sum + Number(item.profit || 0),
+      (sum, item) => sum + Number(item?.profit ?? 0),
       0
     );
   }, [sales]);
 
   const cashSales = useMemo(() => {
     return sales
-      .filter((x) => x.payment_status === "Naqd")
-      .reduce((sum, item) => sum + Number(item.total || 0), 0);
+      .filter(
+        (item) =>
+          String(item?.payment_status || "").toLowerCase() ===
+          "naqd"
+      )
+      .reduce(
+        (sum, item) => sum + Number(item?.total ?? 0),
+        0
+      );
   }, [sales]);
 
   const cardSales = useMemo(() => {
     return sales
-      .filter((x) => x.payment_status === "Karta")
-      .reduce((sum, item) => sum + Number(item.total || 0), 0);
+      .filter(
+        (item) =>
+          String(item?.payment_status || "").toLowerCase() ===
+          "karta"
+      )
+      .reduce(
+        (sum, item) => sum + Number(item?.total ?? 0),
+        0
+      );
   }, [sales]);
 
   const debtSales = useMemo(() => {
     return sales
-      .filter((x) => x.payment_status === "Qarz")
-      .reduce((sum, item) => sum + Number(item.total || 0), 0);
+      .filter(
+        (item) =>
+          String(item?.payment_status || "").toLowerCase() ===
+          "qarz"
+      )
+      .reduce(
+        (sum, item) => sum + Number(item?.total ?? 0),
+        0
+      );
   }, [sales]);
 
   const chartData = useMemo(() => {
-    const data = {};
+    const grouped = {};
 
     sales.forEach((item) => {
-      if (!item.date) return;
+      if (!item?.date) return;
 
-      const day = new Date(item.date).toLocaleDateString(
-        "uz-UZ",
-        {
-          day: "2-digit",
-          month: "2-digit",
-        }
-      );
+      const date = new Date(item.date);
 
-      if (!data[day]) {
-        data[day] = 0;
-      }
+      if (Number.isNaN(date.getTime())) return;
 
-      data[day] += Number(item.total || 0);
+      const key = date.toLocaleDateString("uz-UZ", {
+        day: "2-digit",
+        month: "2-digit",
+      });
+
+      grouped[key] =
+        (grouped[key] || 0) + Number(item?.total ?? 0);
     });
 
-    return Object.keys(data)
+    return Object.entries(grouped)
       .slice(-7)
-      .map((day) => ({
+      .map(([day, value]) => ({
         day,
-        sales: data[day],
+        sales: value,
       }));
   }, [sales]);
 
-  const paymentChart = [
-    {
-      name: "Naqd",
-      value: cashSales,
-    },
-    {
-      name: "Karta",
-      value: cardSales,
-    },
-    {
-      name: "Qarz",
-      value: debtSales,
-    },
-  ];
-
-  const COLORS = [
-    "#2563eb",
-    "#16a34a",
-    "#dc2626",
-  ];
-
-  const cards = [
+  const stats = [
     {
       title: "Mijozlar",
-      value: dashboard.customers.toLocaleString(),
+      value: money(dashboard.customers),
+      description: "Jami mijozlar",
       icon: <People />,
       color: "#2563eb",
-      background: "#eff6ff",
+      bg: "#eff6ff",
     },
     {
       title: "Mahsulotlar",
-      value: dashboard.products.toLocaleString(),
+      value: money(dashboard.products),
+      description: "Jami mahsulotlar",
       icon: <Inventory />,
       color: "#7c3aed",
-      background: "#f5f3ff",
+      bg: "#f5f3ff",
     },
     {
       title: "Bugungi savdo",
-      value:
-        todayTotal.toLocaleString("uz-UZ") +
-        " so'm",
+      value: `${money(todayTotal)} so'm`,
+      description: `${todaySales.length} ta savdo`,
       icon: <ShoppingCart />,
       color: "#0891b2",
-      background: "#ecfeff",
+      bg: "#ecfeff",
     },
     {
       title: "Bugungi foyda",
-      value:
-        todayProfit.toLocaleString("uz-UZ") +
-        " so'm",
+      value: `${money(todayProfit)} so'm`,
+      description: "Bugungi sof foyda",
       icon: <TrendingUp />,
       color: "#16a34a",
-      background: "#f0fdf4",
+      bg: "#f0fdf4",
     },
     {
-      title: "Naqd",
-      value:
-        cashSales.toLocaleString("uz-UZ") +
-        " so'm",
+      title: "Naqd pul",
+      value: `${money(cashSales)} so'm`,
+      description: "Naqd savdolar",
       icon: <Money />,
       color: "#059669",
-      background: "#ecfdf5",
+      bg: "#ecfdf5",
     },
     {
       title: "Karta",
-      value:
-        cardSales.toLocaleString("uz-UZ") +
-        " so'm",
+      value: `${money(cardSales)} so'm`,
+      description: "Karta orqali",
       icon: <CreditCard />,
       color: "#4f46e5",
-      background: "#eef2ff",
+      bg: "#eef2ff",
     },
     {
       title: "Qarz",
-      value:
-        debtSales.toLocaleString("uz-UZ") +
-        " so'm",
+      value: `${money(debtSales)} so'm`,
+      description: "Qarzga berilgan",
       icon: <Warning />,
       color: "#dc2626",
-      background: "#fef2f2",
+      bg: "#fef2f2",
     },
     {
       title: "Jami foyda",
-      value:
-        totalProfit.toLocaleString("uz-UZ") +
-        " so'm",
+      value: `${money(totalProfit)} so'm`,
+      description: "Umumiy foyda",
       icon: <Paid />,
       color: "#ca8a04",
-      background: "#fefce8",
+      bg: "#fefce8",
     },
   ];
+
+  const financeCards = [
+    {
+      title: "Jami daromad",
+      value: finance.total_income_uzs,
+      description: "Kirimlar",
+      icon: <ArrowUpward />,
+      color: "#16a34a",
+      bg: "#ecfdf5",
+    },
+    {
+      title: "Jami xarajat",
+      value: finance.total_expense_uzs,
+      description: "Chiqimlar",
+      icon: <ArrowDownward />,
+      color: "#dc2626",
+      bg: "#fef2f2",
+    },
+    {
+      title: "Sof balans",
+      value: finance.net_balance_uzs,
+      description: "Daromad - xarajat",
+      icon: <AccountBalanceWallet />,
+      color: "#2563eb",
+      bg: "#eff6ff",
+    },
+    {
+      title: "Mendan qarzdor",
+      value: finance.receivables_remaining,
+      description: `${finance.receivables_count || 0} ta qarzdor`,
+      icon: <CreditCard />,
+      color: "#7c3aed",
+      bg: "#f5f3ff",
+    },
+  ];
+
+  const paymentData = [
+    { name: "Naqd", value: cashSales },
+    { name: "Karta", value: cardSales },
+    { name: "Qarz", value: debtSales },
+  ];
+
+  const paymentColors = ["#2563eb", "#10b981", "#ef4444"];
 
   return (
     <Box
       sx={{
         width: "100%",
-        maxWidth: "1600px",
-        margin: "0 auto",
+        maxWidth: 1750,
+        mx: "auto",
+        pb: 6,
       }}
     >
-      {/* PREMIUM HEADER */}
-
-      <Box
+      <Card
         sx={{
-          background:
-            "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)",
-          borderRadius: "24px",
-          padding: {
-            xs: "22px",
-            md: "30px",
-          },
-          color: "white",
-          marginBottom: "25px",
-          boxShadow:
-            "0 15px 35px rgba(15,23,42,0.18)",
           position: "relative",
           overflow: "hidden",
+          borderRadius: "26px",
+          mb: 3,
+          color: "#fff",
+          background:
+            "linear-gradient(135deg,#020617 0%,#0f172a 45%,#1d4ed8 100%)",
+          boxShadow: "0 18px 45px rgba(15,23,42,.18)",
         }}
       >
         <Box
           sx={{
             position: "absolute",
-            width: "220px",
-            height: "220px",
+            width: 360,
+            height: 360,
             borderRadius: "50%",
-            background:
-              "rgba(255,255,255,0.06)",
-            right: "-70px",
-            top: "-90px",
+            background: "rgba(59,130,246,.18)",
+            right: -120,
+            top: -180,
           }}
         />
 
         <Box
           sx={{
             position: "absolute",
-            width: "150px",
-            height: "150px",
+            width: 220,
+            height: 220,
             borderRadius: "50%",
-            background:
-              "rgba(56,189,248,0.10)",
-            right: "120px",
-            bottom: "-90px",
+            background: "rgba(14,165,233,.12)",
+            right: 240,
+            bottom: -160,
           }}
         />
 
-        <Stack
-          direction={{
-            xs: "column",
-            md: "row",
-          }}
-          justifyContent="space-between"
-          alignItems={{
-            xs: "flex-start",
-            md: "center",
-          }}
-          spacing={2}
+        <CardContent
           sx={{
             position: "relative",
-            zIndex: 1,
+            zIndex: 2,
+            p: { xs: 3, md: 4 },
+            "&:last-child": {
+              pb: { xs: 3, md: 4 },
+            },
           }}
         >
-          <Box>
-            <Typography
-              sx={{
-                fontSize: {
-                  xs: "25px",
-                  md: "32px",
-                },
-                fontWeight: 800,
-                letterSpacing: "-0.5px",
-              }}
-            >
-              SAFE HOME SERVICES ERP
-            </Typography>
-
-            <Typography
-              sx={{
-                mt: 0.7,
-                color: "#bfdbfe",
-                fontSize: "15px",
-              }}
-            >
-              Biznesingizni bitta joydan
-              boshqaring
-            </Typography>
-          </Box>
-
-          <Button
-            onClick={loadDashboard}
-            startIcon={<Refresh />}
-            variant="contained"
-            sx={{
-              background:
-                "rgba(255,255,255,0.12)",
-              backdropFilter: "blur(10px)",
-              border:
-                "1px solid rgba(255,255,255,0.15)",
-              color: "white",
-              borderRadius: "12px",
-              padding: "10px 18px",
-              textTransform: "none",
-              fontWeight: 700,
-              "&:hover": {
-                background:
-                  "rgba(255,255,255,0.20)",
-              },
-            }}
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", md: "center" }}
+            spacing={3}
           >
-            Yangilash
-          </Button>
-        </Stack>
-      </Box>
+            <Box>
+              <Chip
+                icon={<Assessment />}
+                label="BOSHQARUV PANELI"
+                size="small"
+                sx={{
+                  mb: 1.5,
+                  color: "#dbeafe",
+                  background: "rgba(255,255,255,.10)",
+                  border: "1px solid rgba(255,255,255,.15)",
+                  fontWeight: 800,
+                  letterSpacing: ".5px",
+                }}
+              />
+
+              <Typography
+                sx={{
+                  fontSize: { xs: 28, md: 40 },
+                  fontWeight: 950,
+                  letterSpacing: "-1.5px",
+                }}
+              >
+                SAFE HOME SERVICES
+              </Typography>
+
+              <Typography
+                sx={{
+                  mt: 1,
+                  color: "#bfdbfe",
+                  fontSize: { xs: 13, md: 15 },
+                  fontWeight: 500,
+                }}
+              >
+                Biznesingizni bitta professional tizimdan boshqaring
+              </Typography>
+            </Box>
+
+            <Button
+              onClick={loadDashboard}
+              disabled={loading}
+              startIcon={<Refresh />}
+              sx={{
+                px: 2.5,
+                py: 1.2,
+                borderRadius: "13px",
+                color: "#fff",
+                textTransform: "none",
+                fontWeight: 800,
+                background: "rgba(255,255,255,.12)",
+                border: "1px solid rgba(255,255,255,.18)",
+                "&:hover": {
+                  background: "rgba(255,255,255,.20)",
+                },
+              }}
+            >
+              Yangilash
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
 
       {loading && (
         <LinearProgress
           sx={{
             mb: 3,
-            borderRadius: 5,
+            height: 4,
+            borderRadius: 10,
           }}
         />
       )}
 
-      {/* STATISTICS */}
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        {financeCards.map((item) => (
+          <Grid key={item.title} size={{ xs: 12, sm: 6, lg: 3 }}>
+            <Card
+              sx={{
+                height: "100%",
+                borderRadius: "20px",
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 7px 25px rgba(15,23,42,.055)",
+                transition: ".25s",
+                "&:hover": {
+                  transform: "translateY(-4px)",
+                  boxShadow: "0 14px 32px rgba(15,23,42,.10)",
+                },
+              }}
+            >
+              <CardContent sx={{ p: "21px !important" }}>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                >
+                  <Box>
+                    <Typography
+                      sx={{
+                        color: "#64748b",
+                        fontSize: 12,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {item.title}
+                    </Typography>
 
-      <Grid
-        container
-        spacing={2.5}
-      >
-        {cards.map((item) => (
+                    <Typography
+                      sx={{
+                        mt: 0.8,
+                        fontSize: { xs: 19, md: 22 },
+                        fontWeight: 950,
+                        color: "#0f172a",
+                      }}
+                    >
+                      {money(item.value)} so'm
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        mt: 0.4,
+                        color: "#94a3b8",
+                        fontSize: 11,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {item.description}
+                    </Typography>
+                  </Box>
+
+                  <Avatar
+                    sx={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: "15px",
+                      bgcolor: item.bg,
+                      color: item.color,
+                    }}
+                  >
+                    {item.icon}
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        {stats.map((item) => (
           <Grid
             key={item.title}
-            size={{
-              xs: 12,
-              sm: 6,
-              md: 3,
-            }}
+            size={{ xs: 12, sm: 6, lg: 3 }}
           >
             <Card
               sx={{
                 height: "100%",
                 borderRadius: "20px",
-                border:
-                  "1px solid rgba(148,163,184,0.15)",
-                boxShadow:
-                  "0 8px 25px rgba(15,23,42,0.06)",
-                transition:
-                  "all 0.25s ease",
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 7px 25px rgba(15,23,42,.055)",
+                transition: ".25s",
                 "&:hover": {
-                  transform:
-                    "translateY(-4px)",
-                  boxShadow:
-                    "0 14px 30px rgba(15,23,42,0.11)",
+                  transform: "translateY(-4px)",
+                  boxShadow: "0 14px 32px rgba(15,23,42,.10)",
                 },
               }}
             >
-              <CardContent
-                sx={{
-                  padding: "21px !important",
-                }}
-              >
+              <CardContent sx={{ p: "21px !important" }}>
                 <Stack
                   direction="row"
                   justifyContent="space-between"
@@ -433,8 +571,8 @@ function Dashboard() {
                     <Typography
                       sx={{
                         color: "#64748b",
-                        fontSize: "14px",
-                        fontWeight: 600,
+                        fontSize: 12,
+                        fontWeight: 800,
                       }}
                     >
                       {item.title}
@@ -442,13 +580,11 @@ function Dashboard() {
 
                     <Typography
                       sx={{
-                        mt: 1,
-                        fontSize: {
-                          xs: "22px",
-                          md: "25px",
-                        },
-                        fontWeight: 800,
+                        mt: 0.8,
                         color: "#0f172a",
+                        fontSize: { xs: 20, md: 23 },
+                        fontWeight: 950,
+                        lineHeight: 1.25,
                       }}
                     >
                       {item.value}
@@ -457,10 +593,10 @@ function Dashboard() {
 
                   <Avatar
                     sx={{
-                      width: 48,
-                      height: 48,
-                      background:
-                        item.background,
+                      width: 47,
+                      height: 47,
+                      borderRadius: "14px",
+                      bgcolor: item.bg,
                       color: item.color,
                     }}
                   >
@@ -468,68 +604,32 @@ function Dashboard() {
                   </Avatar>
                 </Stack>
 
-                <Stack
-                  direction="row"
-                  spacing={0.5}
-                  alignItems="center"
+                <Typography
                   sx={{
                     mt: 2,
-                    color:
-                      item.title === "Qarz"
-                        ? "#dc2626"
-                        : "#16a34a",
+                    color: item.color,
+                    fontSize: 11,
+                    fontWeight: 800,
                   }}
                 >
-                  {item.title === "Qarz" ? (
-                    <ArrowDownward
-                      sx={{ fontSize: 16 }}
-                    />
-                  ) : (
-                    <ArrowUpward
-                      sx={{ fontSize: 16 }}
-                    />
-                  )}
-
-                  <Typography
-                    sx={{
-                      fontSize: "12px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    Moliyaviy ko'rsatkich
-                  </Typography>
-                </Stack>
+                  {item.description}
+                </Typography>
               </CardContent>
             </Card>
           </Grid>
         ))}
       </Grid>
 
-      {/* CHARTS */}
-
-      <Grid
-        container
-        spacing={2.5}
-        sx={{ mt: 0.5 }}
-      >
-        <Grid
-          size={{
-            xs: 12,
-            md: 8,
-          }}
-        >
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, lg: 8 }}>
           <Card
             sx={{
-              borderRadius: "20px",
-              boxShadow:
-                "0 8px 25px rgba(15,23,42,0.06)",
-              border:
-                "1px solid rgba(148,163,184,0.15)",
+              borderRadius: "22px",
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 8px 28px rgba(15,23,42,.06)",
             }}
           >
-            <CardContent
-              sx={{ padding: "24px !important" }}
-            >
+            <CardContent sx={{ p: "24px !important" }}>
               <Stack
                 direction="row"
                 justifyContent="space-between"
@@ -539,8 +639,8 @@ function Dashboard() {
                 <Box>
                   <Typography
                     sx={{
-                      fontSize: "18px",
-                      fontWeight: 800,
+                      fontSize: 19,
+                      fontWeight: 950,
                       color: "#0f172a",
                     }}
                   >
@@ -550,11 +650,11 @@ function Dashboard() {
                   <Typography
                     sx={{
                       color: "#64748b",
-                      fontSize: "13px",
+                      fontSize: 12,
                       mt: 0.4,
                     }}
                   >
-                    Oxirgi 7 kun
+                    Oxirgi 7 kunlik savdo ko'rsatkichi
                   </Typography>
                 </Box>
 
@@ -562,85 +662,94 @@ function Dashboard() {
                   icon={<TrendingUp />}
                   label="Savdo"
                   sx={{
-                    background: "#eff6ff",
+                    bgcolor: "#eff6ff",
                     color: "#2563eb",
-                    fontWeight: 700,
+                    fontWeight: 800,
                   }}
                 />
               </Stack>
 
-              <ResponsiveContainer
-                width="100%"
-                height={320}
-              >
-                <LineChart data={chartData}>
+              <ResponsiveContainer width="100%" height={320}>
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient
+                      id="salesGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor="#2563eb"
+                        stopOpacity={0.25}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="#2563eb"
+                        stopOpacity={0}
+                      />
+                    </linearGradient>
+                  </defs>
+
                   <CartesianGrid
-                    strokeDasharray="3 3"
                     stroke="#e2e8f0"
+                    strokeDasharray="3 3"
+                    vertical={false}
                   />
 
                   <XAxis
                     dataKey="day"
+                    axisLine={false}
+                    tickLine={false}
                     tick={{
-                      fontSize: 12,
+                      fontSize: 11,
+                      fill: "#64748b",
                     }}
                   />
 
                   <YAxis
+                    axisLine={false}
+                    tickLine={false}
                     tick={{
-                      fontSize: 12,
+                      fontSize: 11,
+                      fill: "#64748b",
                     }}
                   />
 
                   <Tooltip
                     formatter={(value) =>
-                      Number(value).toLocaleString(
-                        "uz-UZ"
-                      ) + " so'm"
+                      `${money(value)} so'm`
                     }
                   />
 
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="sales"
                     stroke="#2563eb"
-                    strokeWidth={4}
-                    dot={{
-                      r: 5,
-                    }}
-                    activeDot={{
-                      r: 7,
-                    }}
+                    strokeWidth={3}
+                    fill="url(#salesGradient)"
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid
-          size={{
-            xs: 12,
-            md: 4,
-          }}
-        >
+        <Grid size={{ xs: 12, lg: 4 }}>
           <Card
             sx={{
-              borderRadius: "20px",
-              boxShadow:
-                "0 8px 25px rgba(15,23,42,0.06)",
-              border:
-                "1px solid rgba(148,163,184,0.15)",
               height: "100%",
+              borderRadius: "22px",
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 8px 28px rgba(15,23,42,.06)",
             }}
           >
-            <CardContent
-              sx={{ padding: "24px !important" }}
-            >
+            <CardContent sx={{ p: "24px !important" }}>
               <Typography
                 sx={{
-                  fontSize: "18px",
-                  fontWeight: 800,
+                  fontSize: 19,
+                  fontWeight: 950,
                   color: "#0f172a",
                 }}
               >
@@ -650,140 +759,113 @@ function Dashboard() {
               <Typography
                 sx={{
                   color: "#64748b",
-                  fontSize: "13px",
-                  mt: 0.5,
+                  fontSize: 12,
+                  mt: 0.4,
                 }}
               >
-                Savdolarning taqsimoti
+                Savdolarning to'lov bo'yicha taqsimoti
               </Typography>
 
-              <ResponsiveContainer
-                width="100%"
-                height={270}
-              >
+              <ResponsiveContainer width="100%" height={230}>
                 <PieChart>
                   <Pie
-                    data={paymentChart}
+                    data={paymentData}
                     dataKey="value"
-                    outerRadius={90}
-                    innerRadius={55}
+                    nameKey="name"
+                    innerRadius={60}
+                    outerRadius={88}
                     paddingAngle={4}
                   >
-                    {paymentChart.map(
-                      (item, index) => (
-                        <Cell
-                          key={item.name}
-                          fill={COLORS[index]}
-                        />
-                      )
-                    )}
+                    {paymentData.map((item, index) => (
+                      <Cell
+                        key={item.name}
+                        fill={paymentColors[index]}
+                      />
+                    ))}
                   </Pie>
 
                   <Tooltip
                     formatter={(value) =>
-                      Number(value).toLocaleString(
-                        "uz-UZ"
-                      ) + " so'm"
+                      `${money(value)} so'm`
                     }
                   />
                 </PieChart>
               </ResponsiveContainer>
 
-              <Stack spacing={1}>
-                {paymentChart.map(
-                  (item, index) => (
+              <Stack spacing={1.3}>
+                {paymentData.map((item, index) => (
+                  <Stack
+                    key={item.name}
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                  >
                     <Stack
-                      key={item.name}
                       direction="row"
-                      justifyContent="space-between"
+                      spacing={1}
                       alignItems="center"
                     >
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        alignItems="center"
-                      >
-                        <Box
-                          sx={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background:
-                              COLORS[index],
-                          }}
-                        />
-
-                        <Typography
-                          sx={{
-                            fontSize: "13px",
-                            color: "#475569",
-                          }}
-                        >
-                          {item.name}
-                        </Typography>
-                      </Stack>
+                      <Box
+                        sx={{
+                          width: 9,
+                          height: 9,
+                          borderRadius: "50%",
+                          bgcolor: paymentColors[index],
+                        }}
+                      />
 
                       <Typography
                         sx={{
-                          fontSize: "13px",
+                          fontSize: 12,
+                          color: "#475569",
                           fontWeight: 700,
                         }}
                       >
-                        {Number(
-                          item.value
-                        ).toLocaleString(
-                          "uz-UZ"
-                        )}{" "}
-                        so'm
+                        {item.name}
                       </Typography>
                     </Stack>
-                  )
-                )}
+
+                    <Typography
+                      sx={{
+                        fontSize: 12,
+                        fontWeight: 900,
+                      }}
+                    >
+                      {money(item.value)} so'm
+                    </Typography>
+                  </Stack>
+                ))}
               </Stack>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* WAREHOUSE + LOW STOCK */}
-
-      <Grid
-        container
-        spacing={2.5}
-        sx={{ mt: 0.5 }}
-      >
-        <Grid
-          size={{
-            xs: 12,
-            md: 5,
-          }}
-        >
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, md: 5 }}>
           <Card
             sx={{
-              borderRadius: "20px",
-              boxShadow:
-                "0 8px 25px rgba(15,23,42,0.06)",
-              border:
-                "1px solid rgba(148,163,184,0.15)",
               height: "100%",
+              borderRadius: "22px",
+              color: "#fff",
+              background:
+                "linear-gradient(135deg,#020617,#1e3a8a)",
+              boxShadow:
+                "0 16px 38px rgba(30,58,138,.18)",
             }}
           >
-            <CardContent
-              sx={{
-                padding: "25px !important",
-              }}
-            >
+            <CardContent sx={{ p: "27px !important" }}>
               <Stack
                 direction="row"
-                spacing={2}
+                spacing={1.5}
                 alignItems="center"
               >
                 <Avatar
                   sx={{
                     width: 52,
                     height: 52,
-                    background: "#eff6ff",
-                    color: "#2563eb",
+                    bgcolor: "rgba(255,255,255,.10)",
+                    color: "#bfdbfe",
                   }}
                 >
                   <Warehouse />
@@ -792,8 +874,8 @@ function Dashboard() {
                 <Box>
                   <Typography
                     sx={{
-                      fontWeight: 800,
-                      fontSize: "18px",
+                      fontSize: 18,
+                      fontWeight: 950,
                     }}
                   >
                     Ombor holati
@@ -801,65 +883,104 @@ function Dashboard() {
 
                   <Typography
                     sx={{
-                      color: "#64748b",
-                      fontSize: "13px",
+                      color: "#93c5fd",
+                      fontSize: 11,
                     }}
                   >
-                    Jami mavjud mahsulot
+                    Mavjud mahsulotlar
                   </Typography>
                 </Box>
               </Stack>
 
               <Typography
                 sx={{
-                  fontSize: "42px",
-                  fontWeight: 900,
                   mt: 3,
-                  color: "#0f172a",
+                  fontSize: 46,
+                  fontWeight: 950,
                 }}
               >
-                {Number(
-                  dashboard.warehouse
-                ).toLocaleString()}
+                {money(dashboard.warehouse)}
               </Typography>
 
               <Typography
                 sx={{
-                  color: "#64748b",
-                  fontSize: "14px",
+                  color: "#bfdbfe",
+                  fontSize: 12,
                 }}
               >
                 dona mahsulot mavjud
               </Typography>
+
+              <Divider
+                sx={{
+                  my: 2.5,
+                  borderColor: "rgba(255,255,255,.12)",
+                }}
+              />
+
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+              >
+                <Box>
+                  <Typography
+                    sx={{
+                      color: "#93c5fd",
+                      fontSize: 11,
+                    }}
+                  >
+                    Mahsulot turi
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      fontSize: 18,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {money(dashboard.products)}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography
+                    sx={{
+                      color: "#93c5fd",
+                      fontSize: 11,
+                    }}
+                  >
+                    Kam qolgan
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      fontSize: 18,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {dashboard.low_products.length}
+                  </Typography>
+                </Box>
+              </Stack>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid
-          size={{
-            xs: 12,
-            md: 7,
-          }}
-        >
+        <Grid size={{ xs: 12, md: 7 }}>
           <Card
             sx={{
-              borderRadius: "20px",
-              boxShadow:
-                "0 8px 25px rgba(15,23,42,0.06)",
-              border:
-                "1px solid rgba(148,163,184,0.15)",
+              height: "100%",
+              borderRadius: "22px",
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 8px 28px rgba(15,23,42,.06)",
             }}
           >
-            <CardContent
-              sx={{
-                padding: "25px !important",
-              }}
-            >
+            <CardContent sx={{ p: "25px !important" }}>
               <Stack
                 direction="row"
                 justifyContent="space-between"
                 alignItems="center"
-                mb={1}
+                mb={2}
               >
                 <Stack
                   direction="row"
@@ -868,9 +989,9 @@ function Dashboard() {
                 >
                   <Avatar
                     sx={{
-                      width: 42,
-                      height: 42,
-                      background: "#fef2f2",
+                      width: 46,
+                      height: 46,
+                      bgcolor: "#fef2f2",
                       color: "#dc2626",
                     }}
                   >
@@ -880,8 +1001,8 @@ function Dashboard() {
                   <Box>
                     <Typography
                       sx={{
-                        fontWeight: 800,
-                        fontSize: "18px",
+                        fontSize: 18,
+                        fontWeight: 950,
                       }}
                     >
                       Kam qolgan mahsulotlar
@@ -890,7 +1011,7 @@ function Dashboard() {
                     <Typography
                       sx={{
                         color: "#64748b",
-                        fontSize: "12px",
+                        fontSize: 11,
                       }}
                     >
                       Omborni nazorat qiling
@@ -902,54 +1023,86 @@ function Dashboard() {
                   label={`${dashboard.low_products.length} ta`}
                   color="error"
                   variant="outlined"
+                  sx={{ fontWeight: 800 }}
                 />
               </Stack>
 
-              {dashboard.low_products.length ===
-              0 ? (
+              {dashboard.low_products.length === 0 ? (
                 <Box
                   sx={{
-                    textAlign: "center",
-                    padding: "25px",
-                    color: "#16a34a",
+                    minHeight: 180,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  <Typography
-                    fontWeight="bold"
-                  >
-                    ✓ Barcha mahsulotlar yetarli
-                  </Typography>
+                  <Stack alignItems="center" spacing={1}>
+                    <CheckCircle
+                      sx={{
+                        fontSize: 48,
+                        color: "#16a34a",
+                      }}
+                    />
+
+                    <Typography
+                      sx={{
+                        color: "#16a34a",
+                        fontWeight: 900,
+                      }}
+                    >
+                      Barcha mahsulotlar yetarli
+                    </Typography>
+                  </Stack>
                 </Box>
               ) : (
                 <List>
                   {dashboard.low_products
                     .slice(0, 5)
-                    .map((item) => (
-                      <Box key={item.id}>
-                        <ListItem
-                          sx={{
-                            px: 0,
-                          }}
-                        >
+                    .map((item, index) => (
+                      <Box key={item?.id ?? index}>
+                        <ListItem sx={{ px: 0, py: 1.1 }}>
+                          <Avatar
+                            sx={{
+                              mr: 1.5,
+                              width: 38,
+                              height: 38,
+                              bgcolor: "#fef2f2",
+                              color: "#dc2626",
+                            }}
+                          >
+                            <Inventory sx={{ fontSize: 18 }} />
+                          </Avatar>
+
                           <ListItemText
                             primary={
                               <Typography
-                                fontWeight={700}
+                                sx={{
+                                  fontWeight: 800,
+                                  fontSize: 13,
+                                }}
                               >
-                                {item.name}
+                                {item?.name || "Noma'lum mahsulot"}
                               </Typography>
                             }
-                            secondary={`Qoldiq: ${item.quantity} dona`}
+                            secondary={`Qoldiq: ${
+                              item?.quantity ?? 0
+                            }`}
                           />
 
                           <Chip
                             label="Kam"
                             color="error"
                             size="small"
+                            sx={{ fontWeight: 800 }}
                           />
                         </ListItem>
 
-                        <Divider />
+                        {index <
+                          Math.min(
+                            dashboard.low_products.length,
+                            5
+                          ) -
+                            1 && <Divider />}
                       </Box>
                     ))}
                 </List>
@@ -959,57 +1112,64 @@ function Dashboard() {
         </Grid>
       </Grid>
 
-      {/* LAST SALES */}
-
       <Card
         sx={{
-          mt: 2.5,
-          borderRadius: "20px",
-          boxShadow:
-            "0 8px 25px rgba(15,23,42,0.06)",
-          border:
-            "1px solid rgba(148,163,184,0.15)",
+          borderRadius: "22px",
+          border: "1px solid #e2e8f0",
+          boxShadow: "0 8px 28px rgba(15,23,42,.06)",
         }}
       >
-        <CardContent
-          sx={{
-            padding: "25px !important",
-          }}
-        >
+        <CardContent sx={{ p: "25px !important" }}>
           <Stack
-            direction="row"
+            direction={{ xs: "column", sm: "row" }}
             justifyContent="space-between"
-            alignItems="center"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            spacing={2}
             mb={2}
           >
-            <Box>
-              <Typography
+            <Stack
+              direction="row"
+              spacing={1.5}
+              alignItems="center"
+            >
+              <Avatar
                 sx={{
-                  fontSize: "19px",
-                  fontWeight: 800,
+                  width: 46,
+                  height: 46,
+                  bgcolor: "#eff6ff",
+                  color: "#2563eb",
                 }}
               >
-                So'nggi savdolar
-              </Typography>
+                <ShoppingCart />
+              </Avatar>
 
-              <Typography
-                sx={{
-                  color: "#64748b",
-                  fontSize: "13px",
-                  mt: 0.4,
-                }}
-              >
-                Oxirgi amalga oshirilgan savdolar
-              </Typography>
-            </Box>
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: 19,
+                    fontWeight: 950,
+                  }}
+                >
+                  So'nggi savdolar
+                </Typography>
+
+                <Typography
+                  sx={{
+                    color: "#64748b",
+                    fontSize: 11,
+                  }}
+                >
+                  Oxirgi amalga oshirilgan savdolar
+                </Typography>
+              </Box>
+            </Stack>
 
             <Chip
-              icon={<ShoppingCart />}
-              label={`${dashboard.last_sales.length} ta`}
+              label={`${dashboard.last_sales.length} ta savdo`}
               sx={{
-                background: "#eff6ff",
+                bgcolor: "#eff6ff",
                 color: "#2563eb",
-                fontWeight: 700,
+                fontWeight: 800,
               }}
             />
           </Stack>
@@ -1017,71 +1177,95 @@ function Dashboard() {
           {dashboard.last_sales.length === 0 ? (
             <Box
               sx={{
-                padding: "35px",
+                py: 5,
                 textAlign: "center",
-                color: "#64748b",
               }}
             >
-              Hozircha savdolar mavjud emas
+              <ShoppingCart
+                sx={{
+                  fontSize: 48,
+                  color: "#cbd5e1",
+                  mb: 1,
+                }}
+              />
+
+              <Typography
+                sx={{
+                  color: "#64748b",
+                  fontWeight: 700,
+                }}
+              >
+                Hozircha savdolar mavjud emas
+              </Typography>
             </Box>
           ) : (
             <List>
-              {dashboard.last_sales.map(
-                (item, index) => (
-                  <Box key={item.id}>
-                    <ListItem
+              {dashboard.last_sales.map((item, index) => (
+                <Box key={item?.id ?? index}>
+                  <ListItem sx={{ px: 0, py: 1.4 }}>
+                    <Avatar
                       sx={{
-                        px: 0,
-                        py: 1.5,
+                        mr: 2,
+                        width: 42,
+                        height: 42,
+                        bgcolor: "#eff6ff",
+                        color: "#2563eb",
                       }}
                     >
-                      <Avatar
-                        sx={{
-                          mr: 2,
-                          background:
-                            "#eff6ff",
-                          color: "#2563eb",
-                        }}
-                      >
-                        <ShoppingCart />
-                      </Avatar>
+                      <ShoppingCart />
+                    </Avatar>
 
-                      <ListItemText
-                        primary={
-                          <Typography
-                            fontWeight={700}
-                          >
-                            {item.customer ||
-                              "Mijoz"}
-                          </Typography>
-                        }
-                        secondary={
-                          item.date || "-"
-                        }
-                      />
+                    <ListItemText
+                      primary={
+                        <Typography
+                          sx={{
+                            fontWeight: 850,
+                            fontSize: 13,
+                          }}
+                        >
+                          {item?.customer || "Mijoz"}
+                        </Typography>
+                      }
+                      secondary={
+                        item?.date
+                          ? new Date(
+                              item.date
+                            ).toLocaleString("uz-UZ")
+                          : "-"
+                      }
+                    />
 
+                    <Stack alignItems="flex-end">
                       <Typography
                         sx={{
-                          fontWeight: 800,
+                          fontWeight: 950,
                           color: "#0f172a",
+                          fontSize: 13,
                         }}
                       >
-                        {Number(
-                          item.total || 0
-                        ).toLocaleString(
-                          "uz-UZ"
-                        )}{" "}
-                        so'm
+                        {money(item?.total)} so'm
                       </Typography>
-                    </ListItem>
 
-                    {index !==
-                      dashboard.last_sales
-                        .length -
-                        1 && <Divider />}
-                  </Box>
-                )
-              )}
+                      <Chip
+                        size="small"
+                        label={
+                          item?.payment_status || "To'lov"
+                        }
+                        sx={{
+                          mt: 0.4,
+                          fontSize: 9,
+                          fontWeight: 800,
+                        }}
+                      />
+                    </Stack>
+                  </ListItem>
+
+                  {index !==
+                    dashboard.last_sales.length - 1 && (
+                    <Divider />
+                  )}
+                </Box>
+              ))}
             </List>
           )}
         </CardContent>
@@ -1089,5 +1273,3 @@ function Dashboard() {
     </Box>
   );
 }
-
-export default Dashboard;

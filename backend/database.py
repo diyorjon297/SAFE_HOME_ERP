@@ -1,45 +1,35 @@
+﻿from pathlib import Path
 import os
 
 from dotenv import load_dotenv
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+ENV_FILE = Path(__file__).resolve().parent / ".env"
 
-# =========================
-# .ENV NI YUKLASH
-# =========================
+load_dotenv(dotenv_path=ENV_FILE, override=True, encoding="utf-8")
 
-load_dotenv()
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME = os.getenv("DB_NAME")
 
+if not DB_USER:
+    raise RuntimeError(f"DB_USER topilmadi: {ENV_FILE}")
 
-# =========================
-# DATABASE URL
-# =========================
+if not DB_PASSWORD:
+    raise RuntimeError(f"DB_PASSWORD topilmadi: {ENV_FILE}")
 
 DATABASE_URL = (
-    f"postgresql://"
-    f"{os.getenv('DB_USER')}:"
-    f"{os.getenv('DB_PASSWORD')}@"
-    f"{os.getenv('DB_HOST')}:"
-    f"{os.getenv('DB_PORT')}/"
-    f"{os.getenv('DB_NAME')}"
+    f"postgresql://{DB_USER}:{DB_PASSWORD}"
+    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
-
-
-# =========================
-# DATABASE ENGINE
-# =========================
 
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
 )
-
-
-# =========================
-# SESSION
-# =========================
 
 SessionLocal = sessionmaker(
     autocommit=False,
@@ -47,23 +37,12 @@ SessionLocal = sessionmaker(
     bind=engine,
 )
 
-
-# =========================
-# BASE
-# =========================
-
 Base = declarative_base()
 
 
-# =========================
-# DATABASE DEPENDENCY
-# =========================
-
 def get_db():
     db = SessionLocal()
-
     try:
         yield db
-
     finally:
         db.close()

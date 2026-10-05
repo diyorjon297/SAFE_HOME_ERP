@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -16,17 +16,19 @@ import CustomerDetail from "./pages/CustomerDetails";
 import Products from "./pages/Products";
 import Sales from "./pages/Sales";
 import Debts from "./pages/Debts";
-import Finance from "./pages/Finance";
+import Moliya from "./pages/Moliya";
 import Orders from "./pages/Orders";
 import Warehouse from "./pages/Warehouse";
+import Cameras from "./pages/Cameras";
 import Services from "./pages/Services";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Inquiries from "./pages/Inquiries";
+import DailyOperations from "./pages/DailyOperations";
+import Objects from "./pages/Objects";
+import Employees from "./pages/Employees";
 
-// =====================================================
-// LOGIN
-// =====================================================
 
 function Login() {
   const navigate = useNavigate();
@@ -35,6 +37,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -66,7 +69,7 @@ function Login() {
       } else {
         setError(
           err.response?.data?.detail ||
-            "Server bilan bog'lanishda xato"
+          "Server bilan bog'lanishda xato"
         );
       }
     } finally {
@@ -79,173 +82,465 @@ function Login() {
       style={{
         minHeight: "100vh",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f1f5f9",
-        padding: 20,
+        background:
+          "linear-gradient(135deg, #07111f 0%, #0b1d35 50%, #123c69 100%)",
+        overflow: "hidden",
+        position: "relative",
       }}
     >
+      {/* Fon effektlari */}
       <div
         style={{
-          width: "100%",
-          maxWidth: 420,
-          background: "#fff",
-          padding: 32,
-          borderRadius: 16,
-          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+          position: "absolute",
+          width: 500,
+          height: 500,
+          borderRadius: "50%",
+          background: "rgba(37,99,235,0.18)",
+          filter: "blur(80px)",
+          top: -180,
+          left: -120,
+        }}
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          width: 450,
+          height: 450,
+          borderRadius: "50%",
+          background: "rgba(14,165,233,0.13)",
+          filter: "blur(90px)",
+          bottom: -180,
+          right: -100,
+        }}
+      />
+
+      {/* Chap tomon */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          padding: "60px",
+          color: "white",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        <div style={{ maxWidth: 600 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 30,
+            }}
+          >
+            <div
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 16,
+                background:
+                  "linear-gradient(135deg,#2563eb,#0ea5e9)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 30,
+                boxShadow:
+                  "0 10px 35px rgba(37,99,235,.35)",
+              }}
+            >
+              🏠
+            </div>
+
+            <div>
+              <div
+                style={{
+                  fontSize: 24,
+                  fontWeight: 900,
+                  letterSpacing: 1,
+                }}
+              >
+                SAFE HOME
+              </div>
+
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "#93c5fd",
+                  letterSpacing: 3,
+                  fontWeight: 600,
+                }}
+              >
+                SERVICES
+              </div>
+            </div>
+          </div>
+
+          <h1
+            style={{
+              fontSize: "clamp(38px,5vw,64px)",
+              lineHeight: 1.05,
+              margin: 0,
+              fontWeight: 900,
+              letterSpacing: -2,
+            }}
+          >
+            Biznesingizni
+            <br />
+            <span style={{ color: "#60a5fa" }}>
+              bir joydan
+            </span>{" "}
+            boshqaring.
+          </h1>
+
+          <p
+            style={{
+              fontSize: 18,
+              lineHeight: 1.7,
+              color: "#cbd5e1",
+              maxWidth: 520,
+              marginTop: 25,
+            }}
+          >
+            Kamera, domofon, ombor, mijozlar,
+            buyurtmalar va moliyani boshqarish
+            uchun yagona ERP tizim.
+          </p>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 30,
+            }}
+          >
+            {[
+              "📷 Videokuzatuv",
+              "📦 Ombor",
+              "💰 Moliya",
+              "👥 Mijozlar",
+            ].map((item) => (
+              <div
+                key={item}
+                style={{
+                  padding: "10px 15px",
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,.07)",
+                  border:
+                    "1px solid rgba(255,255,255,.1)",
+                  color: "#e2e8f0",
+                  fontSize: 13,
+                }}
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Login */}
+      <div
+        style={{
+          width: "min(480px, 100%)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 30,
+          position: "relative",
+          zIndex: 2,
         }}
       >
         <div
           style={{
-            textAlign: "center",
-            marginBottom: 28,
+            width: "100%",
+            maxWidth: 410,
+            background: "rgba(255,255,255,.97)",
+            borderRadius: 24,
+            padding: 38,
+            boxSizing: "border-box",
+            boxShadow:
+              "0 30px 80px rgba(0,0,0,.3)",
           }}
         >
-          <h2
+          <div
             style={{
-              margin: 0,
-              color: "#111827",
-              fontWeight: 800,
+              textAlign: "center",
+              marginBottom: 30,
             }}
           >
-            SAFE HOME
-          </h2>
-
-          <p
-            style={{
-              marginTop: 6,
-              color: "#64748b",
-            }}
-          >
-            SERVICES ERP
-          </p>
-        </div>
-
-        <form onSubmit={handleLogin}>
-          <label
-            style={{
-              display: "block",
-              marginBottom: 7,
-              fontWeight: 600,
-            }}
-          >
-            Login
-          </label>
-
-          <input
-            type="text"
-            value={login}
-            onChange={(e) => setLogin(e.target.value)}
-            placeholder="Loginni kiriting"
-            autoComplete="username"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: 12,
-              marginBottom: 16,
-              border: "1px solid #cbd5e1",
-              borderRadius: 10,
-              fontSize: 15,
-              outline: "none",
-            }}
-          />
-
-          <label
-            style={{
-              display: "block",
-              marginBottom: 7,
-              fontWeight: 600,
-            }}
-          >
-            Parol
-          </label>
-
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Parolni kiriting"
-            autoComplete="current-password"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: 12,
-              marginBottom: 16,
-              border: "1px solid #cbd5e1",
-              borderRadius: 10,
-              fontSize: 15,
-              outline: "none",
-            }}
-          />
-
-          {error && (
             <div
               style={{
-                color: "#dc2626",
-                background: "#fee2e2",
-                padding: 10,
-                borderRadius: 8,
-                marginBottom: 15,
-                textAlign: "center",
+                width: 70,
+                height: 70,
+                margin: "0 auto 18px",
+                borderRadius: 20,
+                background:
+                  "linear-gradient(135deg,#2563eb,#0ea5e9)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 36,
+                boxShadow:
+                  "0 12px 30px rgba(37,99,235,.3)",
               }}
             >
-              {error}
+              🔐
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 27,
+                fontWeight: 900,
+                color: "#0f172a",
+              }}
+            >
+              Tizimga kirish
+            </h2>
+
+            <p
+              style={{
+                marginTop: 8,
+                marginBottom: 0,
+                color: "#64748b",
+                fontSize: 14,
+              }}
+            >
+              SAFE HOME SERVICES ERP
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: 8,
+                color: "#334155",
+                fontWeight: 700,
+                fontSize: 14,
+              }}
+            >
+              Login
+            </label>
+
+            <div
+              style={{
+                position: "relative",
+                marginBottom: 18,
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  left: 14,
+                  top: 13,
+                  fontSize: 18,
+                }}
+              >
+                👤
+              </span>
+
+              <input
+                type="text"
+                value={login}
+                onChange={(e) =>
+                  setLogin(e.target.value)
+                }
+                placeholder="Loginni kiriting"
+                autoComplete="username"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "13px 14px 13px 45px",
+                  border:
+                    "1px solid #dbe2ea",
+                  borderRadius: 12,
+                  fontSize: 15,
+                  outline: "none",
+                  background: "#f8fafc",
+                }}
+              />
+            </div>
+
+            <label
+              style={{
+                display: "block",
+                marginBottom: 8,
+                color: "#334155",
+                fontWeight: 700,
+                fontSize: 14,
+              }}
+            >
+              Parol
+            </label>
+
+            <div
+              style={{
+                position: "relative",
+                marginBottom: 18,
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  left: 14,
+                  top: 13,
+                  fontSize: 18,
+                }}
+              >
+                🔑
+              </span>
+
+              <input
+                type={
+                  showPassword
+                    ? "text"
+                    : "password"
+                }
+                value={password}
+                onChange={(e) =>
+                  setPassword(e.target.value)
+                }
+                placeholder="Parolni kiriting"
+                autoComplete="current-password"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding:
+                    "13px 48px 13px 45px",
+                  border:
+                    "1px solid #dbe2ea",
+                  borderRadius: 12,
+                  fontSize: 15,
+                  outline: "none",
+                  background: "#f8fafc",
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowPassword(
+                    !showPassword
+                  )
+                }
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: 8,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: 19,
+                  padding: 5,
+                }}
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
+
+            {error && (
+              <div
+                style={{
+                  color: "#b91c1c",
+                  background: "#fef2f2",
+                  border:
+                    "1px solid #fecaca",
+                  padding: 12,
+                  borderRadius: 10,
+                  marginBottom: 16,
+                  textAlign: "center",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: 14,
+                border: "none",
+                borderRadius: 12,
+                background: loading
+                  ? "#94a3b8"
+                  : "linear-gradient(135deg,#2563eb,#0ea5e9)",
+                color: "#fff",
+                fontWeight: 800,
+                fontSize: 16,
+                cursor: loading
+                  ? "not-allowed"
+                  : "pointer",
+                boxShadow: loading
+                  ? "none"
+                  : "0 10px 25px rgba(37,99,235,.25)",
+              }}
+            >
+              {loading
+                ? "Kirilmoqda..."
+                : "Kirish →"}
+            </button>
+          </form>
+
+          <div
             style={{
-              width: "100%",
-              padding: 13,
-              border: "none",
-              borderRadius: 10,
-              background: loading ? "#94a3b8" : "#2563eb",
-              color: "#fff",
-              fontWeight: 700,
-              fontSize: 16,
-              cursor: loading ? "not-allowed" : "pointer",
+              textAlign: "center",
+              marginTop: 25,
+              paddingTop: 18,
+              borderTop:
+                "1px solid #e2e8f0",
+              color: "#94a3b8",
+              fontSize: 12,
             }}
           >
-            {loading ? "Kirilmoqda..." : "Kirish"}
-          </button>
-        </form>
+            SAFE HOME SERVICES
+            <br />
+            ERP System • Version 1.0
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// =====================================================
-// PROTECTED ROUTE
-// =====================================================
 
 function ProtectedRoute({ children }) {
-  const token = localStorage.getItem("safe_home_token");
+  const token = localStorage.getItem(
+    "safe_home_token"
+  );
 
   if (!token) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
   }
 
   return children;
 }
 
-// =====================================================
-// APP
-// =====================================================
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* LOGIN */}
         <Route
           path="/login"
           element={<Login />}
         />
 
-        {/* MAIN ERP */}
         <Route
           path="/"
           element={
@@ -254,14 +549,21 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-
-          {/* DASHBOARD */}
           <Route
             index
             element={<Dashboard />}
           />
 
-          {/* MIJOZLAR */}
+          <Route
+            path="objects"
+            element={<Objects />}
+          />
+
+          <Route
+            path="employees"
+            element={<Employees />}
+          />
+
           <Route
             path="customers"
             element={<Customers />}
@@ -272,74 +574,77 @@ export default function App() {
             element={<CustomerDetail />}
           />
 
-          {/* MAHSULOTLAR */}
           <Route
             path="products"
             element={<Products />}
           />
 
-          {/* SAVDO */}
+          <Route
+            path="cameras"
+            element={<Cameras />}
+          />
+
           <Route
             path="sales"
             element={<Sales />}
           />
 
-          {/* QARZLAR */}
           <Route
             path="debts"
             element={<Debts />}
           />
 
-          {/* MOLIYA */}
           <Route
             path="finance"
-            element={<Finance />}
+            element={<Moliya />}
           />
 
-          {/* BUYURTMALAR */}
           <Route
             path="orders"
             element={<Orders />}
           />
 
-          {/* OMBOR */}
+          <Route
+            path="daily-operations"
+            element={<DailyOperations />}
+          />
+
+          <Route
+            path="inquiries"
+            element={<Inquiries />}
+          />
+
           <Route
             path="warehouse"
             element={<Warehouse />}
           />
 
-          {/* XIZMATLAR */}
           <Route
             path="services"
             element={<Services />}
           />
 
-          {/* XARAJATLAR */}
           <Route
             path="expenses"
             element={<Expenses />}
           />
 
-          {/* HISOBOTLAR */}
           <Route
             path="reports"
             element={<Reports />}
           />
 
-          {/* SOZLAMALAR */}
           <Route
             path="settings"
             element={<Settings />}
           />
-
         </Route>
 
-        {/* NOT FOUND */}
         <Route
           path="*"
           element={
             <Navigate
-              to="/login"
+              to="/"
               replace
             />
           }
@@ -349,3 +654,5 @@ export default function App() {
     </BrowserRouter>
   );
 }
+
+

@@ -1,25 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import API from "../api";
 
 import {
   Box,
+  Stack,
+  Typography,
+  Avatar,
   Button,
   Card,
   CardContent,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Grid,
-  IconButton,
-  InputAdornment,
   TextField,
-  Typography,
-  Avatar,
-  Stack,
+  InputAdornment,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   Divider,
+  Grid,
 } from "@mui/material";
 
 import { DataGrid } from "@mui/x-data-grid";
@@ -36,6 +35,10 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import BusinessIcon from "@mui/icons-material/Business";
 import RefreshIcon from "@mui/icons-material/Refresh";
+
+import * as XLSX from "xlsx";
+
+import API from "../api";
 
 export default function Customers() {
   const navigate = useNavigate();
@@ -54,22 +57,14 @@ export default function Customers() {
     debt: 0,
   });
 
-  // =====================================================
+  // =========================
   // MIJOZLARNI YUKLASH
-  // =====================================================
-
+  // =========================
   const loadCustomers = async () => {
     try {
       setLoading(true);
 
-      let res;
-
-      try {
-        res = await API.get("/customers");
-      } catch {
-        res = await API.get("/customers/");
-      }
-
+      const res = await API.get("/customers/");
       const data = res.data;
 
       if (Array.isArray(data)) {
@@ -83,6 +78,12 @@ export default function Customers() {
       }
     } catch (error) {
       console.error("Customers load error:", error);
+
+      alert(
+        error?.response?.data?.detail ||
+          "Mijozlarni yuklashda xatolik yuz berdi."
+      );
+
       setCustomers([]);
     } finally {
       setLoading(false);
@@ -93,10 +94,9 @@ export default function Customers() {
     loadCustomers();
   }, []);
 
-  // =====================================================
+  // =========================
   // FORM
-  // =====================================================
-
+  // =========================
   const resetForm = () => {
     setForm({
       name: "",
@@ -114,10 +114,9 @@ export default function Customers() {
     setOpen(true);
   };
 
-  // =====================================================
+  // =========================
   // SAQLASH
-  // =====================================================
-
+  // =========================
   const saveCustomer = async () => {
     if (!form.name.trim()) {
       alert("Mijoz nomini kiriting!");
@@ -136,7 +135,7 @@ export default function Customers() {
       if (editId) {
         await API.put(`/customers/${editId}`, payload);
       } else {
-        await API.post("/customers", payload);
+        await API.post("/customers/", payload);
       }
 
       setOpen(false);
@@ -153,10 +152,9 @@ export default function Customers() {
     }
   };
 
-  // =====================================================
+  // =========================
   // TAHRIRLASH
-  // =====================================================
-
+  // =========================
   const editCustomer = (row) => {
     setEditId(row.id);
 
@@ -171,10 +169,9 @@ export default function Customers() {
     setOpen(true);
   };
 
-  // =====================================================
+  // =========================
   // O'CHIRISH
-  // =====================================================
-
+  // =========================
   const deleteCustomer = async (id) => {
     if (!window.confirm("Mijoz o'chirilsinmi?")) {
       return;
@@ -193,10 +190,9 @@ export default function Customers() {
     }
   };
 
-  // =====================================================
+  // =========================
   // QIDIRUV
-  // =====================================================
-
+  // =========================
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
 
@@ -214,10 +210,9 @@ export default function Customers() {
     });
   }, [customers, search]);
 
-  // =====================================================
+  // =========================
   // STATISTIKA
-  // =====================================================
-
+  // =========================
   const totalCustomers = customers.length;
 
   const debtorsCount = customers.filter(
@@ -229,10 +224,41 @@ export default function Customers() {
     0
   );
 
-  // =====================================================
-  // DATA GRID
-  // =====================================================
+  // =========================
+  // EXCEL
+  // =========================
+  const exportCustomersExcel = () => {
+    if (!customers.length) {
+      alert("Eksport qilish uchun mijozlar mavjud emas.");
+      return;
+    }
 
+    const data = customers.map((customer) => ({
+      ID: customer.id || "",
+      Mijoz: customer.name || "",
+      Telefon: customer.phone || "",
+      Manzil: customer.address || "",
+      Obyekt: customer.object || "",
+      Qarz: Number(customer.debt || 0),
+      Valyuta: customer.currency || "UZS",
+      Izoh: customer.note || customer.description || "",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      "Mijozlar"
+    );
+
+    XLSX.writeFile(workbook, "Mijozlar.xlsx");
+  };
+
+  // =========================
+  // DATA GRID
+  // =========================
   const columns = [
     {
       field: "id",
@@ -361,18 +387,14 @@ export default function Customers() {
             label="Qarz yo'q"
             color="success"
             size="small"
-            sx={{
-              fontWeight: 700,
-            }}
+            sx={{ fontWeight: 700 }}
           />
         ) : (
           <Chip
             label={`${debt.toLocaleString("uz-UZ")} so'm`}
             color="error"
             size="small"
-            sx={{
-              fontWeight: 700,
-            }}
+            sx={{ fontWeight: 700 }}
           />
         );
       },
@@ -406,7 +428,9 @@ export default function Customers() {
           <IconButton
             color="primary"
             title="Tahrirlash"
-            onClick={() => editCustomer(params.row)}
+            onClick={() =>
+              editCustomer(params.row)
+            }
           >
             <EditIcon />
           </IconButton>
@@ -425,10 +449,9 @@ export default function Customers() {
     },
   ];
 
-  // =====================================================
+  // =========================
   // STAT CARD
-  // =====================================================
-
+  // =========================
   const StatCard = ({
     title,
     value,
@@ -441,7 +464,8 @@ export default function Customers() {
         overflow: "hidden",
         position: "relative",
         height: "100%",
-        border: "1px solid rgba(148,163,184,.15)",
+        border:
+          "1px solid rgba(148,163,184,.15)",
         boxShadow:
           "0 8px 30px rgba(15,23,42,.07)",
         background: "#fff",
@@ -489,8 +513,6 @@ export default function Customers() {
               width: 50,
               height: 50,
               background: gradient,
-              boxShadow:
-                "0 8px 20px rgba(37,99,235,.20)",
             }}
           >
             {icon}
@@ -509,10 +531,7 @@ export default function Customers() {
         p: { xs: 2, md: 3 },
       }}
     >
-      {/* =================================================
-          HEADER
-      ================================================= */}
-
+      {/* HEADER */}
       <Box
         sx={{
           mb: 3,
@@ -537,47 +556,60 @@ export default function Customers() {
           }}
           spacing={2}
         >
-          <Box>
-            <Stack
-              direction="row"
-              spacing={1.5}
-              alignItems="center"
+          <Stack
+            direction="row"
+            spacing={1.5}
+            alignItems="center"
+          >
+            <Avatar
+              sx={{
+                bgcolor:
+                  "rgba(255,255,255,.15)",
+                width: 50,
+                height: 50,
+              }}
             >
-              <Avatar
+              <PeopleIcon />
+            </Avatar>
+
+            <Box>
+              <Typography
+                variant="h4"
+                fontWeight={800}
+              >
+                Mijozlar
+              </Typography>
+
+              <Typography
                 sx={{
-                  bgcolor:
-                    "rgba(255,255,255,.15)",
-                  width: 50,
-                  height: 50,
+                  color:
+                    "rgba(255,255,255,.7)",
+                  mt: 0.5,
                 }}
               >
-                <PeopleIcon />
-              </Avatar>
-
-              <Box>
-                <Typography
-                  variant="h4"
-                  fontWeight={800}
-                >
-                  Mijozlar
-                </Typography>
-
-                <Typography
-                  sx={{
-                    color: "rgba(255,255,255,.7)",
-                    mt: 0.5,
-                  }}
-                >
-                  Mijozlar bazasi va qarzlarni boshqarish
-                </Typography>
-              </Box>
-            </Stack>
-          </Box>
+                Mijozlar bazasi va qarzlarni boshqarish
+              </Typography>
+            </Box>
+          </Stack>
 
           <Stack
             direction="row"
             spacing={1}
           >
+            <Button
+              variant="contained"
+              onClick={exportCustomersExcel}
+              sx={{
+                background: "#15803d",
+                "&:hover": {
+                  background: "#166534",
+                },
+                fontWeight: 700,
+              }}
+            >
+              Excel
+            </Button>
+
             <Button
               variant="contained"
               startIcon={<RefreshIcon />}
@@ -616,22 +648,13 @@ export default function Customers() {
         </Stack>
       </Box>
 
-      {/* =================================================
-          STATISTIKA
-      ================================================= */}
-
+      {/* STATISTIKA */}
       <Grid
         container
         spacing={2}
         mb={3}
       >
-        <Grid
-          size={{
-            xs: 12,
-            sm: 6,
-            md: 4,
-          }}
-        >
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
           <StatCard
             title="Jami mijozlar"
             value={totalCustomers}
@@ -640,13 +663,7 @@ export default function Customers() {
           />
         </Grid>
 
-        <Grid
-          size={{
-            xs: 12,
-            sm: 6,
-            md: 4,
-          }}
-        >
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
           <StatCard
             title="Qarzdor mijozlar"
             value={debtorsCount}
@@ -655,12 +672,7 @@ export default function Customers() {
           />
         </Grid>
 
-        <Grid
-          size={{
-            xs: 12,
-            md: 4,
-          }}
-        >
+        <Grid size={{ xs: 12, md: 4 }}>
           <StatCard
             title="Umumiy mijozlar qarzi"
             value={`${totalDebt.toLocaleString(
@@ -674,10 +686,7 @@ export default function Customers() {
         </Grid>
       </Grid>
 
-      {/* =================================================
-          SEARCH
-      ================================================= */}
-
+      {/* QIDIRUV */}
       <Card
         sx={{
           mb: 2,
@@ -707,20 +716,11 @@ export default function Customers() {
                 </InputAdornment>
               ),
             }}
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                borderRadius: 3,
-                background: "#f8fafc",
-              },
-            }}
           />
         </CardContent>
       </Card>
 
-      {/* =================================================
-          TABLE
-      ================================================= */}
-
+      {/* JADVAL */}
       <Card
         sx={{
           borderRadius: 4,
@@ -773,41 +773,7 @@ export default function Customers() {
           </Stack>
         </Box>
 
-        <Box
-          sx={{
-            width: "100%",
-            "& .MuiDataGrid-root": {
-              border: "none",
-            },
-
-            "& .MuiDataGrid-columnHeaders": {
-              background: "#f8fafc",
-              borderBottom:
-                "1px solid #e2e8f0",
-            },
-
-            "& .MuiDataGrid-columnHeaderTitle": {
-              fontWeight: 800,
-              fontSize: 12,
-              color: "#475569",
-            },
-
-            "& .MuiDataGrid-row:hover": {
-              background:
-                "rgba(37,99,235,.035)",
-            },
-
-            "& .MuiDataGrid-cell": {
-              borderBottom:
-                "1px solid #f1f5f9",
-            },
-
-            "& .MuiDataGrid-footerContainer": {
-              borderTop:
-                "1px solid #e2e8f0",
-            },
-          }}
-        >
+        <Box sx={{ width: "100%" }}>
           <DataGrid
             rows={filtered}
             columns={columns}
@@ -837,10 +803,7 @@ export default function Customers() {
         </Box>
       </Card>
 
-      {/* =================================================
-          ADD / EDIT DIALOG
-      ================================================= */}
-
+      {/* ADD / EDIT */}
       <Dialog
         open={open}
         onClose={() => {
@@ -849,12 +812,6 @@ export default function Customers() {
         }}
         fullWidth
         maxWidth="sm"
-        PaperProps={{
-          sx: {
-            borderRadius: 4,
-            overflow: "hidden",
-          },
-        }}
       >
         <DialogTitle
           sx={{
@@ -862,45 +819,11 @@ export default function Customers() {
               "linear-gradient(135deg,#0f172a,#1e3a8a)",
             color: "white",
             fontWeight: 800,
-            py: 2.5,
           }}
         >
-          <Stack
-            direction="row"
-            spacing={1.5}
-            alignItems="center"
-          >
-            <Avatar
-              sx={{
-                bgcolor:
-                  "rgba(255,255,255,.15)",
-              }}
-            >
-              {editId ? (
-                <EditIcon />
-              ) : (
-                <AddIcon />
-              )}
-            </Avatar>
-
-            <Box>
-              {editId
-                ? "Mijozni tahrirlash"
-                : "Yangi mijoz"}
-
-              <Typography
-                display="block"
-                fontSize={13}
-                sx={{
-                  color:
-                    "rgba(255,255,255,.65)",
-                  mt: 0.3,
-                }}
-              >
-                SAFE HOME SERVICES ERP
-              </Typography>
-            </Box>
-          </Stack>
+          {editId
+            ? "Mijozni tahrirlash"
+            : "Yangi mijoz"}
         </DialogTitle>
 
         <DialogContent sx={{ pt: 3 }}>
@@ -979,9 +902,6 @@ export default function Customers() {
             onClick={() => {
               setOpen(false);
               resetForm();
-            }}
-            sx={{
-              borderRadius: 2,
             }}
           >
             Bekor qilish

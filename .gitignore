@@ -1,6 +1,80 @@
-node_modules/
-dist/
-.env
-.vscode/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Backups / old versions
+*.bak
+*.bak2
+*.backup
+*.zip
+*_backup*
+*BACKUP*
+*BEFORE_*
+*_OLD*
+*_old*
+*BROKEN*
+*.broken
+*.broken_now
+
+# Database dumps
+*.dump
+*.sql
+
+# Node
+node_modules/
+frontend/node_modules/
+dist/
+build/
+
+# Temporary files
+*.tmp
+*.temp
+*.txt
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Accidental files
+backend/curl.exe
+backend/fix_finance (1).py
+backend/COALESCE(paid
+backend/paid
+backend_NEW/
+add_product_fields.py
+check_products_db.py
+database.py
+import_prices.py
+inspect_prices.py
+main.js
+notepad
+powershell
+cd
+{
+frontend/{
+frontend/0
+frontend/openapi.json
+frontend/start_hidden.vbs
+frontend/src/pages/cd
+frontend/src/pages/dir
+frontend/src/pages/ren
+
+# Reference / broken frontend copies
+frontend/src/pages/*_REFERENCE_*.jsx
+frontend/src/pages/Objects_jsx.jsx
+frontend/src/pages/Objects_BROKEN_*.jsx
+frontend/src/pages/Objects*.broken*
+frontend/src/pages/Inquiries.jsx.broken

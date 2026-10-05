@@ -1,0 +1,13 @@
+﻿from fastapi import APIRouter
+
+router = APIRouter(
+    prefix="/reports",
+    tags=["Reports"]
+)
+
+@router.get("/")
+def get_reports():
+    return {
+        "status": "OK",
+        "message": "Hisobotlar bo‘limi ishlayapti"
+    }

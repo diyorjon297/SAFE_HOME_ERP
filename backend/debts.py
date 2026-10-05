@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from datetime import datetime
 
 from database import get_db
@@ -151,6 +152,23 @@ def add_payment(
     else:
         debt.status = "qarzdor"
 
+    # Har bir to'lovni alohida tarix sifatida saqlash
+    db.execute(
+        text("""
+            INSERT INTO debt_payments
+                (debt_id, amount, currency, note, payment_date)
+            VALUES
+                (:debt_id, :amount, :currency, :note, :payment_date)
+        """),
+        {
+            "debt_id": debt.id,
+            "amount": data.amount,
+            "currency": debt.currency or "UZS",
+            "note": data.note,
+            "payment_date": datetime.utcnow(),
+        }
+    )
+
     db.commit()
     db.refresh(debt)
 
@@ -179,16 +197,33 @@ def get_payment_history(
             detail="Qarz topilmadi"
         )
 
-    if float(debt.paid or 0) <= 0:
-        return []
+    payments = db.execute(
+        text("""
+            SELECT
+                id,
+                debt_id,
+                amount,
+                currency,
+                note,
+                payment_date
+            FROM debt_payments
+            WHERE debt_id = :debt_id
+            ORDER BY payment_date DESC, id DESC
+        """),
+        {"debt_id": debt_id}
+    ).mappings().all()
 
-    return [{
-        "id": debt.id,
-        "amount": float(debt.paid),
-        "currency": debt.currency or "UZS",
-        "note": debt.note,
-        "payment_date": debt.created_at,
-    }]
+    return [
+        {
+            "id": row["id"],
+            "debt_id": row["debt_id"],
+            "amount": float(row["amount"] or 0),
+            "currency": row["currency"] or debt.currency or "UZS",
+            "note": row["note"],
+            "payment_date": row["payment_date"],
+        }
+        for row in payments
+    ]
 
 
 @router.delete("/{debt_id}")

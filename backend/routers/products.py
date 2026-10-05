@@ -11,18 +11,23 @@ router = APIRouter(
 )
 
 
-# =========================
+# =========================================================
 # BARCHA MAHSULOTLAR
-# =========================
+# =========================================================
 
 @router.get("/")
 def get_products(db: Session = Depends(get_db)):
-    return db.query(Product).order_by(Product.id.desc()).all()
+    return (
+        db.query(Product)
+        .filter(Product.is_active == True)
+        .order_by(Product.id.desc())
+        .all()
+    )
 
 
-# =========================
+# =========================================================
 # MAHSULOT QO'SHISH
-# =========================
+# =========================================================
 
 @router.post("/")
 def create_product(
@@ -30,7 +35,24 @@ def create_product(
     db: Session = Depends(get_db)
 ):
 
+    name = str(product.get("name", "")).strip()
+
+    if not name:
+        raise HTTPException(
+            status_code=400,
+            detail="Mahsulot nomini kiriting"
+        )
+
     quantity = float(product.get("quantity", 0) or 0)
+    purchase_price = float(
+        product.get("purchase_price", 0) or 0
+    )
+    purchase_price_usd = float(
+        product.get("purchase_price_usd", 0) or 0
+    )
+    sale_price = float(
+        product.get("sale_price", 0) or 0
+    )
 
     if quantity < 0:
         raise HTTPException(
@@ -38,35 +60,31 @@ def create_product(
             detail="Miqdor manfiy bo'lishi mumkin emas"
         )
 
-    purchase_price = float(
-        product.get("purchase_price", 0) or 0
-    )
-
-    sale_price = float(
-        product.get("sale_price", 0) or 0
-    )
-
     if purchase_price < 0 or sale_price < 0:
         raise HTTPException(
             status_code=400,
             detail="Narx manfiy bo'lishi mumkin emas"
         )
 
+    warranty = int(
+        product.get("warranty_month", 12) or 12
+    )
+
     new_product = Product(
-        name=product.get("name"),
+        name=name,
         brand=product.get("brand"),
         model=product.get("model"),
         category=product.get("category"),
-        resolution=product.get("resolution"),
-        connection=product.get("connection"),
         serial_number=product.get("serial_number"),
+        purchase_price_usd=purchase_price_usd,
         purchase_price=purchase_price,
         sale_price=sale_price,
         quantity=quantity,
         unit=product.get("unit", "dona"),
-        warranty_month=int(
-            product.get("warranty_month", 12) or 12
-        )
+        warranty_month=warranty,
+        supplier=product.get("supplier"),
+        note=product.get("note"),
+        is_active=True,
     )
 
     db.add(new_product)
@@ -76,9 +94,9 @@ def create_product(
     return new_product
 
 
-# =========================
+# =========================================================
 # MAHSULOT QIDIRISH
-# =========================
+# =========================================================
 
 @router.get("/search")
 def search_products(
@@ -86,17 +104,54 @@ def search_products(
     db: Session = Depends(get_db)
 ):
 
-    return db.query(Product).filter(
-        (Product.name.ilike(f"%{q}%")) |
-        (Product.brand.ilike(f"%{q}%")) |
-        (Product.model.ilike(f"%{q}%")) |
-        (Product.category.ilike(f"%{q}%"))
-    ).limit(20).all()
+    search = f"%{q}%"
+
+    return (
+        db.query(Product)
+        .filter(
+            Product.is_active == True,
+            (
+                Product.name.ilike(search)
+                | Product.brand.ilike(search)
+                | Product.model.ilike(search)
+                | Product.category.ilike(search)
+                | Product.serial_number.ilike(search)
+            )
+        )
+        .order_by(Product.id.desc())
+        .limit(50)
+        .all()
+    )
 
 
-# =========================
+# =========================================================
+# BITTA MAHSULOT
+# =========================================================
+
+@router.get("/{product_id}")
+def get_product(
+    product_id: int,
+    db: Session = Depends(get_db)
+):
+
+    item = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
+    )
+
+    if not item:
+        raise HTTPException(
+            status_code=404,
+            detail="Mahsulot topilmadi"
+        )
+
+    return item
+
+
+# =========================================================
 # YANGILASH
-# =========================
+# =========================================================
 
 @router.put("/{product_id}")
 def update_product(
@@ -105,66 +160,60 @@ def update_product(
     db: Session = Depends(get_db)
 ):
 
-    item = db.query(Product).filter(
-        Product.id == product_id
-    ).first()
+    item = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
+    )
 
     if not item:
         raise HTTPException(
             status_code=404,
-            detail="Product topilmadi"
+            detail="Mahsulot topilmadi"
         )
 
-    if "quantity" in product:
-        quantity = float(product["quantity"] or 0)
+    numeric_fields = [
+        "quantity",
+        "purchase_price",
+        "purchase_price_usd",
+        "sale_price",
+        "warranty_month",
+    ]
 
-        if quantity < 0:
+    for field in numeric_fields:
+
+        if field not in product:
+            continue
+
+        value = product[field]
+
+        if field == "warranty_month":
+            value = int(value or 0)
+        else:
+            value = float(value or 0)
+
+        if value < 0:
             raise HTTPException(
                 status_code=400,
-                detail="Miqdor manfiy bo'lishi mumkin emas"
+                detail=f"{field} manfiy bo'lishi mumkin emas"
             )
 
-        item.quantity = quantity
-
-    if "purchase_price" in product:
-        purchase_price = float(
-            product["purchase_price"] or 0
-        )
-
-        if purchase_price < 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Kirim narxi manfiy bo'lishi mumkin emas"
-            )
-
-        item.purchase_price = purchase_price
-
-    if "sale_price" in product:
-        sale_price = float(
-            product["sale_price"] or 0
-        )
-
-        if sale_price < 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Sotuv narxi manfiy bo'lishi mumkin emas"
-            )
-
-        item.sale_price = sale_price
+        setattr(item, field, value)
 
     allowed_fields = {
         "name",
         "brand",
         "model",
         "category",
-        "resolution",
-        "connection",
         "serial_number",
         "unit",
-        "warranty_month",
+        "supplier",
+        "note",
+        "is_active",
     }
 
     for key, value in product.items():
+
         if key in allowed_fields:
             setattr(item, key, value)
 
@@ -174,9 +223,9 @@ def update_product(
     return item
 
 
-# =========================
+# =========================================================
 # O'CHIRISH
-# =========================
+# =========================================================
 
 @router.delete("/{product_id}")
 def delete_product(
@@ -184,17 +233,22 @@ def delete_product(
     db: Session = Depends(get_db)
 ):
 
-    item = db.query(Product).filter(
-        Product.id == product_id
-    ).first()
+    item = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
+    )
 
     if not item:
         raise HTTPException(
             status_code=404,
-            detail="Product topilmadi"
+            detail="Mahsulot topilmadi"
         )
 
-    db.delete(item)
+    # Bazadan butunlay o'chirmaymiz.
+    # Ombor tarixini buzmaslik uchun inactive qilamiz.
+    item.is_active = False
+
     db.commit()
 
     return {

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+﻿from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from pydantic import BaseModel
@@ -103,6 +103,12 @@ def create_finance_tables(db: Session):
         )
     )
 
+    db.execute(text("ALTER TABLE finance_expenses ADD COLUMN IF NOT EXISTS object_id INTEGER"))
+    db.execute(text("ALTER TABLE finance_expenses ADD COLUMN IF NOT EXISTS debt_id INTEGER"))
+    db.execute(text("ALTER TABLE finance_expenses ADD COLUMN IF NOT EXISTS expense_scope VARCHAR(30) NOT NULL DEFAULT 'general'"))
+    db.execute(text("ALTER TABLE finance_expenses ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(15,6)"))
+    db.execute(text("CREATE TABLE IF NOT EXISTS debt_usages (id SERIAL PRIMARY KEY, debt_id INTEGER NOT NULL, expense_id INTEGER NOT NULL, amount NUMERIC(15,2) NOT NULL, currency VARCHAR(10) NOT NULL DEFAULT 'UZS', note TEXT, usage_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"))
+
     db.commit()
 
 
@@ -141,6 +147,11 @@ class ExpenseCreate(BaseModel):
     category: str | None = None
     note: str | None = None
     expense_date: datetime | None = None
+    operation_date: datetime | None = None
+    object_id: int | None = None
+    debt_id: int | None = None
+    expense_scope: str = "general"
+    exchange_rate: float | None = None
 
 
 # =========================================================
@@ -745,63 +756,42 @@ def get_finance_expenses(
 
 
 @router.post("/expense")
+@router.post("/expense")
 def create_finance_expense(
     data: ExpenseCreate,
     db: Session = Depends(get_db)
 ):
-
     create_finance_tables(db)
 
     if not data.title.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Chiqim nomini kiriting"
-        )
+        raise HTTPException(status_code=400, detail="Chiqim nomini kiriting")
 
     if data.amount <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Chiqim summasi 0 dan katta bo'lishi kerak"
-        )
+        raise HTTPException(status_code=400, detail="Chiqim summasi 0 dan katta bo'lishi kerak")
 
     currency = validate_currency(data.currency)
 
-    expense_date = (
-        data.expense_date
-        or datetime.now()
-    )
+    exchange_rate = None
+    if currency == "USD":
+        if data.exchange_rate is None or data.exchange_rate <= 0:
+            raise HTTPException(status_code=400, detail="USD uchun valyuta kursini kiriting")
+        exchange_rate = data.exchange_rate
+
+    expense_date = data.operation_date or data.expense_date or datetime.now()
 
     row = db.execute(
-        text(
-            """
-            INSERT INTO finance_expenses
-            (
-                title,
-                amount,
-                currency,
-                category,
-                note,
-                expense_date
+        text('''
+            INSERT INTO finance_expenses (
+                title, amount, currency, category, note, expense_date,
+                object_id, debt_id, expense_scope, exchange_rate
             )
-            VALUES
-            (
-                :title,
-                :amount,
-                :currency,
-                :category,
-                :note,
-                :expense_date
+            VALUES (
+                :title, :amount, :currency, :category, :note, :expense_date,
+                :object_id, :debt_id, :expense_scope, :exchange_rate
             )
-            RETURNING
-                id,
-                title,
-                amount,
-                currency,
-                category,
-                note,
-                expense_date
-            """
-        ),
+            RETURNING id, title, amount, currency, category, note, expense_date,
+                      object_id, debt_id, expense_scope, exchange_rate
+        '''),
         {
             "title": data.title.strip(),
             "amount": data.amount,
@@ -809,7 +799,11 @@ def create_finance_expense(
             "category": data.category,
             "note": data.note,
             "expense_date": expense_date,
-        }
+            "object_id": data.object_id,
+            "debt_id": data.debt_id,
+            "expense_scope": data.expense_scope or "general",
+            "exchange_rate": exchange_rate,
+        },
     ).mappings().first()
 
     db.commit()
@@ -822,10 +816,11 @@ def create_finance_expense(
         "category": row["category"],
         "note": row["note"],
         "expense_date": row["expense_date"],
+        "object_id": row["object_id"],
+        "debt_id": row["debt_id"],
+        "expense_scope": row["expense_scope"],
+        "exchange_rate": float(row["exchange_rate"]) if row["exchange_rate"] is not None else None,
     }
-
-
-# =========================================================
 # FINANCE SUMMARY
 # =========================================================
 
@@ -897,3 +892,7 @@ def get_finance_summary(
             - float(expense["total"] or 0)
         ),
     }
+
+
+
+

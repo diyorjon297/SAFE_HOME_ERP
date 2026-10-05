@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import API from "../api";
 
 import {
@@ -30,18 +31,14 @@ import {
   Delete,
   Search,
   Inventory,
-  Category,
   Warning,
   AttachMoney,
   Storage,
-  Refresh,
 } from "@mui/icons-material";
 
 import { DataGrid } from "@mui/x-data-grid";
 
-
 export default function Products() {
-
   const emptyForm = {
     id: null,
     name: "",
@@ -73,11 +70,6 @@ export default function Products() {
     type: "success",
   });
 
-
-  // =========================
-  // MESSAGE
-  // =========================
-
   const showMessage = (message, type = "success") => {
     setSnackbar({
       open: true,
@@ -86,161 +78,279 @@ export default function Products() {
     });
   };
 
-
   // =========================
   // PRODUCTS
   // =========================
 
   const loadProducts = async () => {
-
     try {
-
       setLoading(true);
 
       const res = await API.get("/products/");
 
       setProducts(
-        Array.isArray(res.data)
-          ? res.data
-          : []
+        Array.isArray(res.data) ? res.data : []
       );
-
     } catch (error) {
-
       console.error(error);
 
       showMessage(
         "Mahsulotlarni yuklashda xato",
         "error"
       );
-
     } finally {
-
       setLoading(false);
-
     }
   };
-
 
   // =========================
   // CAMERA CATALOG
   // =========================
 
   const loadCameraCatalog = async () => {
-
     try {
-
       const res = await API.get("/cameras/catalog");
 
       setCameraList(
-        Array.isArray(res.data)
-          ? res.data
-          : []
+        Array.isArray(res.data) ? res.data : []
       );
-
     } catch (error) {
-
       console.log(error);
-
     }
   };
 
-
   useEffect(() => {
-
     loadProducts();
     loadCameraCatalog();
-
   }, []);
 
+  // =========================
+  // BRAND LIST
+  // =========================
+
+  const brandOptions = useMemo(() => {
+    const defaultBrands = [
+      "Hikvision",
+      "Dahua",
+      "EZVIZ",
+      "Uniview",
+      "Tiandy",
+      "Hiksemi",
+      "HiLook",
+      "IMOU",
+      "TP-Link",
+      "Ruijie",
+      "D-Link",
+      "MikroTik",
+      "WST",
+      "ZKTeco",
+      "Akuvox",
+      "Aiphone",
+      "Xiaomi",
+      "Ubiquiti",
+    ];
+
+    const productBrands = products
+      .map((item) => item.brand)
+      .filter(
+        (brand) =>
+          typeof brand === "string" &&
+          brand.trim() !== ""
+      );
+
+    const cameraBrands = cameraList
+      .map((item) => item.brand)
+      .filter(
+        (brand) =>
+          typeof brand === "string" &&
+          brand.trim() !== ""
+      );
+
+    return [
+      ...new Set([
+        ...defaultBrands,
+        ...productBrands,
+        ...cameraBrands,
+      ]),
+    ].sort();
+  }, [products, cameraList]);
+
+  // =========================
+  // CATEGORY LIST
+  // =========================
+
+  const categoryOptions = [
+    "Camera",
+    "NVR",
+    "DVR",
+    "HDD",
+    "SSD",
+    "PoE Switch",
+    "Switch",
+    "Router",
+    "Kabel",
+    "Access Control",
+    "Accessory",
+    "Monitor",
+    "Door Phone",
+    "Power Supply",
+    "UPS",
+    "Other",
+  ];
+
+  // =========================
+  // EXCEL
+  // =========================
+
+  const exportProductsExcel = () => {
+    if (!products.length) {
+      showMessage(
+        "Eksport qilish uchun mahsulotlar mavjud emas",
+        "error"
+      );
+      return;
+    }
+
+    const data = products.map((product) => ({
+      ID: product.id || "",
+      Nomi: product.name || "",
+      Brend: product.brand || "",
+      Model: product.model || "",
+      Kategoriya: product.category || "",
+      Rezolyutsiya: product.resolution || "",
+      Ulanish: product.connection || "",
+      Birlik: product.unit || "",
+      "Serial raqam": product.serial_number || "",
+      "Xarid narxi": Number(
+        product.purchase_price || 0
+      ),
+      "Sotuv narxi": Number(
+        product.sale_price || 0
+      ),
+      Miqdor: Number(product.quantity || 0),
+      "Kafolat oyi": Number(
+        product.warranty_month || 0
+      ),
+    }));
+
+    const worksheet =
+      XLSX.utils.json_to_sheet(data);
+
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      "Mahsulotlar"
+    );
+
+    XLSX.writeFile(
+      workbook,
+      "Mahsulotlar.xlsx"
+    );
+  };
 
   // =========================
   // FORM
   // =========================
 
   const handleChange = (e) => {
-
     const { name, value } = e.target;
 
     setForm((prev) => ({
       ...prev,
       [name]: value,
     }));
-
   };
-
 
   // =========================
   // CAMERA AUTO FILL
   // =========================
 
   const handleCameraSelect = (value) => {
-
     const camera = cameraList.find(
       (item) => item.model === value
     );
 
     setForm((prev) => ({
       ...prev,
-
       model: value || "",
-
       brand: camera?.brand || prev.brand,
-
       category:
-        camera?.camera_type ||
-        prev.category,
-
+        camera?.camera_type || prev.category,
       resolution:
-        camera?.resolution ||
-        prev.resolution,
-
+        camera?.resolution || prev.resolution,
       connection:
-        camera?.connection ||
-        prev.connection,
-
+        camera?.connection || prev.connection,
       warranty_month:
         camera?.warranty_month ||
         prev.warranty_month,
     }));
-
   };
 
+  // =========================
+  // ADD
+  // =========================
+
+  const handleAdd = () => {
+    setEditMode(false);
+    setForm(emptyForm);
+    setOpen(true);
+  };
+
+  // =========================
+  // EDIT
+  // =========================
+
+  const handleEdit = (product) => {
+    setEditMode(true);
+
+    setForm({
+      id: product.id || null,
+      name: product.name || "",
+      brand: product.brand || "",
+      model: product.model || "",
+      category: product.category || "",
+      resolution: product.resolution || "",
+      connection: product.connection || "",
+      unit: product.unit || "dona",
+      serial_number:
+        product.serial_number || "",
+      purchase_price:
+        product.purchase_price ?? "",
+      sale_price:
+        product.sale_price ?? "",
+      quantity:
+        product.quantity ?? "",
+      warranty_month:
+        product.warranty_month ?? "",
+    });
+
+    setOpen(true);
+  };
 
   // =========================
   // SAVE
   // =========================
 
   const handleSave = async () => {
-
     if (!form.name.trim()) {
-
       showMessage(
         "Mahsulot nomini kiriting",
         "error"
       );
-
       return;
     }
 
     try {
-
       const data = {
-
         name: form.name.trim(),
-
         brand: form.brand,
-
         model: form.model,
-
         category: form.category,
-
         resolution: form.resolution,
-
         connection: form.connection,
-
         unit: form.unit,
-
         serial_number: form.serial_number,
 
         purchase_price:
@@ -256,9 +366,7 @@ export default function Products() {
           Number(form.warranty_month) || 0,
       };
 
-
       if (editMode) {
-
         await API.put(
           `/products/${form.id}`,
           data
@@ -267,9 +375,7 @@ export default function Products() {
         showMessage(
           "Mahsulot muvaffaqiyatli yangilandi"
         );
-
       } else {
-
         await API.post(
           "/products/",
           data
@@ -278,18 +384,13 @@ export default function Products() {
         showMessage(
           "Mahsulot muvaffaqiyatli qo'shildi"
         );
-
       }
 
-
       setOpen(false);
-
       setForm(emptyForm);
 
       await loadProducts();
-
     } catch (error) {
-
       console.error(error);
 
       showMessage(
@@ -297,17 +398,14 @@ export default function Products() {
           "Saqlashda xatolik yuz berdi",
         "error"
       );
-
     }
   };
-
 
   // =========================
   // DELETE
   // =========================
 
   const handleDelete = async (id) => {
-
     if (
       !window.confirm(
         "Ushbu mahsulotni o'chirmoqchimisiz?"
@@ -316,93 +414,53 @@ export default function Products() {
       return;
     }
 
-
     try {
+      await API.delete(`/products/${id}`);
 
-      await API.delete(
-        `/products/${id}`
-      );
-
-      showMessage(
-        "Mahsulot o'chirildi"
-      );
+      showMessage("Mahsulot o'chirildi");
 
       await loadProducts();
-
     } catch (error) {
+      console.error(error);
 
       showMessage(
-        "Mahsulotni o'chirishda xato",
+        error?.response?.data?.detail ||
+          "O'chirishda xatolik yuz berdi",
         "error"
       );
-
     }
   };
-
-
-  // =========================
-  // EDIT
-  // =========================
-
-  const handleEdit = (row) => {
-
-    setEditMode(true);
-
-    setForm({
-      ...emptyForm,
-      ...row,
-    });
-
-    setOpen(true);
-
-  };
-
-
-  // =========================
-  // ADD
-  // =========================
-
-  const handleAdd = () => {
-
-    setEditMode(false);
-
-    setForm(emptyForm);
-
-    setOpen(true);
-
-  };
-
 
   // =========================
   // SEARCH
   // =========================
 
   const filteredProducts = useMemo(() => {
-
-    const q = search
+    const query = search
       .toLowerCase()
       .trim();
 
-    if (!q) {
+    if (!query) {
       return products;
     }
 
-    return products.filter((item) => {
-
-      const text = `
-        ${item.name || ""}
-        ${item.brand || ""}
-        ${item.model || ""}
-        ${item.category || ""}
-        ${item.serial_number || ""}
-      `.toLowerCase();
-
-      return text.includes(q);
-
+    return products.filter((product) => {
+      return [
+        product.name,
+        product.brand,
+        product.model,
+        product.category,
+        product.resolution,
+        product.connection,
+      ]
+        .filter(Boolean)
+        .some((value) =>
+          String(value)
+            .toLowerCase()
+            .includes(query)
+        );
     });
-
   }, [products, search]);
-
 
   // =========================
   // STATISTICS
@@ -411,31 +469,29 @@ export default function Products() {
   const totalProducts = products.length;
 
   const totalQuantity = products.reduce(
-    (sum, item) =>
-      sum + Number(item.quantity || 0),
+    (sum, product) =>
+      sum + Number(product.quantity || 0),
     0
   );
 
   const lowStock = products.filter(
-    (item) =>
-      Number(item.quantity || 0) <= 5
+    (product) =>
+      Number(product.quantity || 0) <= 5
   ).length;
 
   const totalValue = products.reduce(
-    (sum, item) =>
+    (sum, product) =>
       sum +
-      Number(item.purchase_price || 0) *
-        Number(item.quantity || 0),
+      Number(product.purchase_price || 0) *
+        Number(product.quantity || 0),
     0
   );
-
 
   // =========================
   // COLUMNS
   // =========================
 
   const columns = [
-
     {
       field: "id",
       headerName: "ID",
@@ -449,14 +505,12 @@ export default function Products() {
       minWidth: 180,
 
       renderCell: (params) => (
-
         <Stack
           direction="row"
           spacing={1.2}
           alignItems="center"
           sx={{ height: "100%" }}
         >
-
           <Avatar
             sx={{
               width: 34,
@@ -474,19 +528,15 @@ export default function Products() {
           >
             {params.value || "-"}
           </Typography>
-
         </Stack>
-
       ),
     },
-
 
     {
       field: "brand",
       headerName: "Brend",
       width: 120,
     },
-
 
     {
       field: "model",
@@ -495,14 +545,12 @@ export default function Products() {
       minWidth: 160,
     },
 
-
     {
       field: "category",
       headerName: "Kategoriya",
       width: 140,
 
       renderCell: (params) => (
-
         <Chip
           label={params.value || "-"}
           size="small"
@@ -512,10 +560,8 @@ export default function Products() {
             color: "#2563eb",
           }}
         />
-
       ),
     },
-
 
     {
       field: "resolution",
@@ -523,13 +569,11 @@ export default function Products() {
       width: 90,
     },
 
-
     {
       field: "connection",
       headerName: "Ulanish",
       width: 110,
     },
-
 
     {
       field: "quantity",
@@ -537,14 +581,14 @@ export default function Products() {
       width: 110,
 
       renderCell: (params) => {
-
         const quantity =
           Number(params.value || 0);
 
         return (
-
           <Chip
-            label={`${quantity} ${params.row.unit || "dona"}`}
+            label={`${quantity} ${
+              params.row.unit || "dona"
+            }`}
             size="small"
             color={
               quantity <= 5
@@ -553,11 +597,9 @@ export default function Products() {
             }
             variant="outlined"
           />
-
         );
       },
     },
-
 
     {
       field: "sale_price",
@@ -565,7 +607,6 @@ export default function Products() {
       width: 150,
 
       renderCell: (params) => (
-
         <Typography
           fontWeight={600}
           color="success.main"
@@ -575,10 +616,8 @@ export default function Products() {
           ).toLocaleString("uz-UZ")}{" "}
           so'm
         </Typography>
-
       ),
     },
-
 
     {
       field: "warranty_month",
@@ -586,16 +625,13 @@ export default function Products() {
       width: 110,
 
       renderCell: (params) => (
-
         <Chip
           label={`${params.value || 0} oy`}
           size="small"
           variant="outlined"
         />
-
       ),
     },
-
 
     {
       field: "actions",
@@ -605,9 +641,7 @@ export default function Products() {
       filterable: false,
 
       renderCell: (params) => (
-
         <Stack direction="row">
-
           <IconButton
             color="primary"
             onClick={() =>
@@ -625,21 +659,16 @@ export default function Products() {
           >
             <Delete />
           </IconButton>
-
         </Stack>
-
       ),
     },
-
   ];
-
 
   // =========================
   // UI
   // =========================
 
   return (
-
     <Box
       sx={{
         minHeight: "100vh",
@@ -649,8 +678,6 @@ export default function Products() {
           "linear-gradient(135deg,#f8fafc 0%,#eef4ff 50%,#f8fafc 100%)",
       }}
     >
-
-
       {/* HEADER */}
 
       <Box
@@ -671,57 +698,42 @@ export default function Products() {
           mb: 3,
         }}
       >
+        <Stack
+          direction="row"
+          spacing={1.5}
+          alignItems="center"
+        >
+          <Avatar
+            sx={{
+              width: 50,
+              height: 50,
 
-        <Box>
+              background:
+                "linear-gradient(135deg,#2563eb,#4f46e5)",
 
-          <Stack
-            direction="row"
-            spacing={1.5}
-            alignItems="center"
+              boxShadow:
+                "0 8px 25px rgba(37,99,235,.25)",
+            }}
           >
+            <Inventory />
+          </Avatar>
 
-            <Avatar
+          <Box>
+            <Typography
+              variant="h4"
+              fontWeight={800}
               sx={{
-                width: 50,
-                height: 50,
-
-                background:
-                  "linear-gradient(135deg,#2563eb,#4f46e5)",
-
-                boxShadow:
-                  "0 8px 25px rgba(37,99,235,.25)",
+                letterSpacing: "-.5px",
               }}
             >
+              Mahsulotlar
+            </Typography>
 
-              <Inventory />
-
-            </Avatar>
-
-
-            <Box>
-
-              <Typography
-                variant="h4"
-                fontWeight={800}
-                sx={{
-                  letterSpacing: "-.5px",
-                }}
-              >
-                Mahsulotlar
-              </Typography>
-
-              <Typography
-                color="text.secondary"
-              >
-                SAFE HOME ERP • Ombor va mahsulotlar
-              </Typography>
-
-            </Box>
-
-          </Stack>
-
-        </Box>
-
+            <Typography color="text.secondary">
+              SAFE HOME ERP вЂў Ombor va mahsulotlar
+            </Typography>
+          </Box>
+        </Stack>
 
         <Button
           variant="contained"
@@ -732,9 +744,7 @@ export default function Products() {
             borderRadius: 3,
             px: 3,
             py: 1.3,
-
             fontWeight: 700,
-
             textTransform: "none",
 
             background:
@@ -742,42 +752,29 @@ export default function Products() {
 
             boxShadow:
               "0 8px 22px rgba(37,99,235,.28)",
-
-            "&:hover": {
-              background:
-                "linear-gradient(135deg,#1d4ed8,#4338ca)",
-            },
           }}
         >
           Yangi mahsulot
         </Button>
-
       </Box>
-
-
 
       {/* STAT CARDS */}
 
       <Box
         sx={{
           display: "grid",
-
           gridTemplateColumns:
             "repeat(auto-fit,minmax(220px,1fr))",
-
           gap: 2,
-
           mb: 3,
         }}
       >
-
         <StatCard
           title="Jami mahsulot"
           value={totalProducts}
           icon={<Inventory />}
           color="#2563eb"
         />
-
 
         <StatCard
           title="Jami miqdor"
@@ -786,7 +783,6 @@ export default function Products() {
           color="#16a34a"
         />
 
-
         <StatCard
           title="Kam qolgan"
           value={lowStock}
@@ -794,17 +790,15 @@ export default function Products() {
           color="#dc2626"
         />
 
-
         <StatCard
           title="Ombor qiymati"
-          value={`${totalValue.toLocaleString("uz-UZ")} so'm`}
+          value={`${totalValue.toLocaleString(
+            "uz-UZ"
+          )} so'm`}
           icon={<AttachMoney />}
           color="#7c3aed"
         />
-
       </Box>
-
-
 
       {/* SEARCH */}
 
@@ -813,26 +807,20 @@ export default function Products() {
         sx={{
           p: 1.5,
           mb: 2,
-
           borderRadius: 3,
-
           border:
             "1px solid #e2e8f0",
-
           boxShadow:
             "0 8px 30px rgba(15,23,42,.05)",
         }}
       >
-
         <TextField
           fullWidth
           value={search}
           onChange={(e) =>
             setSearch(e.target.value)
           }
-
           placeholder="Mahsulot, brend, model yoki kategoriya bo'yicha qidiring..."
-
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -840,17 +828,13 @@ export default function Products() {
               </InputAdornment>
             ),
           }}
-
           sx={{
             "& fieldset": {
               border: "none",
             },
           }}
         />
-
       </Paper>
-
-
 
       {/* TABLE */}
 
@@ -858,36 +842,22 @@ export default function Products() {
         elevation={0}
         sx={{
           height: 620,
-
           borderRadius: 3,
-
           overflow: "hidden",
-
           border:
             "1px solid #e2e8f0",
-
           boxShadow:
             "0 12px 35px rgba(15,23,42,.07)",
         }}
       >
-
         <DataGrid
           rows={filteredProducts}
           columns={columns}
           loading={loading}
-
           getRowId={(row) => row.id}
-
-          pageSizeOptions={[
-            10,
-            25,
-            50,
-          ]}
-
+          pageSizeOptions={[10, 25, 50]}
           disableRowSelectionOnClick
-
           sx={{
-
             border: "none",
 
             "& .MuiDataGrid-columnHeaders": {
@@ -908,22 +878,15 @@ export default function Products() {
             },
           }}
         />
-
       </Paper>
-
-
 
       {/* DIALOG */}
 
       <Dialog
         open={open}
-        onClose={() =>
-          setOpen(false)
-        }
-
+        onClose={() => setOpen(false)}
         fullWidth
         maxWidth="sm"
-
         PaperProps={{
           sx: {
             borderRadius: 4,
@@ -932,28 +895,19 @@ export default function Products() {
           },
         }}
       >
-
         <DialogTitle
           sx={{
             fontWeight: 800,
             fontSize: 24,
           }}
         >
-
           {editMode
             ? "Mahsulotni tahrirlash"
             : "Yangi mahsulot qo'shish"}
-
         </DialogTitle>
 
-
         <DialogContent>
-
-          <Stack
-            spacing={2}
-            mt={1}
-          >
-
+          <Stack spacing={2} mt={1}>
             <TextField
               label="Mahsulot nomi"
               name="name"
@@ -962,30 +916,99 @@ export default function Products() {
               fullWidth
             />
 
+            {/* BREND */}
 
             <Autocomplete
-              freeSolo
-
-              options={
-                cameraList.map(
-                  (item) => item.model
-                )
-              }
-
-              value={form.model}
-
-              onChange={(e, value) =>
-                handleCameraSelect(value)
-              }
-
+              fullWidth
+              options={[
+                "Hikvision",
+                "Dahua",
+                "EZVIZ",
+                "WST",
+              ]}
+              value={form.brand || ""}
+              onChange={(event, value) => {
+                setForm((prev) => ({
+                  ...prev,
+                  brand: value || "",
+                  model: "",
+                }));
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Kamera modeli"
+                  label="Brend"
+                  placeholder="Brendni tanlang"
                 />
               )}
             />
 
+            {/* KAMERA MODELI */}
+
+            <Autocomplete
+              fullWidth
+              options={cameraList
+                .filter((item) => {
+                  if (!form.brand) return false;
+
+                  return (
+                    String(item.brand || "")
+                      .trim()
+                      .toLowerCase() ===
+                    String(form.brand || "")
+                      .trim()
+                      .toLowerCase()
+                  );
+                })
+                .map((item) => item.model)
+                .filter(Boolean)}
+              value={form.model || ""}
+              onChange={(event, value) => {
+                handleCameraSelect(value);
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label={
+                    form.brand
+                      ? `${form.brand} kamera modeli`
+                      : "Kamera modeli"
+                  }
+                  placeholder={
+                    form.brand
+                      ? `${form.brand} modelini tanlang`
+                      : "Avval brendni tanlang"
+                  }
+                />
+              )}
+            />
+            {/* CATEGORY */}
+
+            <Autocomplete
+              fullWidth
+              freeSolo
+              options={categoryOptions}
+              value={form.category || ""}
+              onChange={(event, value) => {
+                setForm((prev) => ({
+                  ...prev,
+                  category: value || "",
+                }));
+              }}
+              onInputChange={(event, value) => {
+                setForm((prev) => ({
+                  ...prev,
+                  category: value || "",
+                }));
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Kategoriya"
+                  placeholder="Kategoriyani tanlang"
+                />
+              )}
+            />
 
             <Stack
               direction={{
@@ -994,34 +1017,6 @@ export default function Products() {
               }}
               spacing={2}
             >
-
-              <TextField
-                fullWidth
-                label="Brend"
-                name="brand"
-                value={form.brand}
-                onChange={handleChange}
-              />
-
-              <TextField
-                fullWidth
-                label="Kategoriya"
-                name="category"
-                value={form.category}
-                onChange={handleChange}
-              />
-
-            </Stack>
-
-
-            <Stack
-              direction={{
-                xs: "column",
-                sm: "row",
-              }}
-              spacing={2}
-            >
-
               <TextField
                 fullWidth
                 label="Rezolyutsiya"
@@ -1037,9 +1032,7 @@ export default function Products() {
                 value={form.connection}
                 onChange={handleChange}
               />
-
             </Stack>
-
 
             <TextField
               select
@@ -1049,7 +1042,6 @@ export default function Products() {
               value={form.unit}
               onChange={handleChange}
             >
-
               <MenuItem value="dona">
                 Dona
               </MenuItem>
@@ -1061,9 +1053,7 @@ export default function Products() {
               <MenuItem value="quti">
                 Quti
               </MenuItem>
-
             </TextField>
-
 
             <TextField
               fullWidth
@@ -1073,7 +1063,6 @@ export default function Products() {
               onChange={handleChange}
             />
 
-
             <Stack
               direction={{
                 xs: "column",
@@ -1081,7 +1070,6 @@ export default function Products() {
               }}
               spacing={2}
             >
-
               <TextField
                 fullWidth
                 label="Kirim narxi"
@@ -1099,9 +1087,7 @@ export default function Products() {
                 value={form.sale_price}
                 onChange={handleChange}
               />
-
             </Stack>
-
 
             <Stack
               direction={{
@@ -1110,7 +1096,6 @@ export default function Products() {
               }}
               spacing={2}
             >
-
               <TextField
                 fullWidth
                 label={
@@ -1118,16 +1103,11 @@ export default function Products() {
                     ? "Metr"
                     : "Miqdor"
                 }
-
                 name="quantity"
-
                 type="number"
-
                 value={form.quantity}
-
                 onChange={handleChange}
               />
-
 
               <TextField
                 fullWidth
@@ -1137,13 +1117,9 @@ export default function Products() {
                 value={form.warranty_month}
                 onChange={handleChange}
               />
-
             </Stack>
-
           </Stack>
-
         </DialogContent>
-
 
         <DialogActions
           sx={{
@@ -1151,12 +1127,22 @@ export default function Products() {
             gap: 1,
           }}
         >
+          <Button
+            variant="contained"
+            onClick={exportProductsExcel}
+            sx={{
+              background: "#15803d",
+              "&:hover": {
+                background: "#166534",
+              },
+              fontWeight: 700,
+            }}
+          >
+            Excel
+          </Button>
 
           <Button
-            onClick={() =>
-              setOpen(false)
-            }
-
+            onClick={() => setOpen(false)}
             sx={{
               textTransform: "none",
             }}
@@ -1164,11 +1150,9 @@ export default function Products() {
             Bekor qilish
           </Button>
 
-
           <Button
             variant="contained"
             onClick={handleSave}
-
             sx={{
               borderRadius: 2.5,
               px: 3,
@@ -1176,38 +1160,29 @@ export default function Products() {
               fontWeight: 700,
             }}
           >
-
             {editMode
               ? "Yangilash"
               : "Saqlash"}
-
           </Button>
-
         </DialogActions>
-
       </Dialog>
-
-
 
       {/* SNACKBAR */}
 
       <Snackbar
         open={snackbar.open}
         autoHideDuration={3000}
-
         onClose={() =>
           setSnackbar((prev) => ({
             ...prev,
             open: false,
           }))
         }
-
         anchorOrigin={{
           vertical: "bottom",
           horizontal: "right",
         }}
       >
-
         <Alert
           severity={snackbar.type}
           variant="filled"
@@ -1217,13 +1192,10 @@ export default function Products() {
         >
           {snackbar.message}
         </Alert>
-
       </Snackbar>
-
     </Box>
   );
 }
-
 
 // =========================
 // STAT CARD
@@ -1235,45 +1207,34 @@ function StatCard({
   icon,
   color,
 }) {
-
   return (
-
     <Card
       elevation={0}
       sx={{
         position: "relative",
         overflow: "hidden",
-
         borderRadius: 3,
-
         border:
           "1px solid #e2e8f0",
-
         boxShadow:
           "0 10px 30px rgba(15,23,42,.06)",
-
         transition:
           "transform .2s, box-shadow .2s",
 
         "&:hover": {
           transform: "translateY(-3px)",
-
           boxShadow:
             "0 16px 35px rgba(15,23,42,.10)",
         },
       }}
     >
-
       <CardContent>
-
         <Stack
           direction="row"
           justifyContent="space-between"
           alignItems="center"
         >
-
           <Box>
-
             <Typography
               color="text.secondary"
               fontSize={14}
@@ -1292,27 +1253,21 @@ function StatCard({
             >
               {value}
             </Typography>
-
           </Box>
-
 
           <Avatar
             sx={{
               width: 48,
               height: 48,
-
               background: `${color}15`,
-
               color: color,
             }}
           >
             {icon}
           </Avatar>
-
         </Stack>
-
       </CardContent>
-
     </Card>
   );
 }
+

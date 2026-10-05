@@ -1,55 +1,26 @@
 import React, { useEffect, useMemo, useState } from "react";
 import API from "../api";
 
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  Grid,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Paper,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
-
-import {
-  Add,
-  Search,
-  Refresh,
-  Payments,
-  Delete,
-  History,
-  AccountBalanceWallet,
-  TrendingDown,
-  CheckCircle,
-  Warning,
-} from "@mui/icons-material";
-
 function Debts() {
   const [debts, setDebts] = useState([]);
-  const [customers, setCustomers] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [schedule, setSchedule] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
-  const [showAdd, setShowAdd] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [tab, setTab] = useState("all");
 
   const [selectedDebt, setSelectedDebt] = useState(null);
+
+  const [showDebtModal, setShowDebtModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   const [form, setForm] = useState({
     creditor: "",
@@ -57,25 +28,26 @@ function Debts() {
     amount: "",
     paid: "",
     currency: "UZS",
+    due_date: "",
     note: "",
-    customer_id: "",
   });
 
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
+    payment_date: "",
+    note: "",
+  });
+
+  const [scheduleForm, setScheduleForm] = useState({
+    monthly_amount: "",
+    next_payment_date: "",
+    duration_months: "",
     note: "",
   });
 
   useEffect(() => {
-    loadAll();
+    loadDebts();
   }, []);
-
-  const loadAll = async () => {
-    await Promise.all([
-      loadDebts(),
-      loadCustomers(),
-    ]);
-  };
 
   const loadDebts = async () => {
     try {
@@ -101,148 +73,194 @@ function Debts() {
     }
   };
 
-  const loadCustomers = async () => {
-    try {
-      const response = await API.get(
-        "/customers/"
-      );
-
-      setCustomers(
-        Array.isArray(response.data)
-          ? response.data
-          : []
-      );
-    } catch (error) {
-      console.error("Customers error:", error);
-      setCustomers([]);
-    }
-  };
-
-  const money = (
-    value,
-    currency = "UZS"
-  ) => {
+  const money = (value, currency = "UZS") => {
     const number = Number(value) || 0;
 
     return (
-      new Intl.NumberFormat("uz-UZ").format(
-        number
-      ) +
-      (currency === "USD"
-        ? " $"
-        : " so'm")
+      new Intl.NumberFormat("uz-UZ").format(number) +
+      (currency === "USD" ? " $" : " so'm")
     );
   };
 
-  const dateFormat = (value) => {
+  const shortMoney = (value, currency) => {
+    return money(value, currency);
+  };
+
+  const formatDate = (value) => {
     if (!value) return "-";
 
     const date = new Date(value);
 
-    if (Number.isNaN(date.getTime())) {
-      return "-";
+    if (Number.isNaN(date.getTime())) return "-";
+
+    return date.toLocaleDateString("uz-UZ");
+  };
+
+  const dateInput = (value) => {
+    if (!value) return "";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toISOString().slice(0, 10);
+  };
+
+  const getTotal = (debt) =>
+    Number(debt?.amount ?? 0) || 0;
+
+  const getPaid = (debt) =>
+    Number(debt?.paid ?? debt?.paid_amount ?? 0) || 0;
+
+  const getRemaining = (debt) => {
+    const backendRemaining = Number(debt?.remaining);
+
+    if (Number.isFinite(backendRemaining)) {
+      return Math.max(backendRemaining, 0);
     }
 
-    return date.toLocaleString("uz-UZ", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return Math.max(
+      getTotal(debt) - getPaid(debt),
+      0
+    );
+  };
+
+  const getCurrency = (debt) =>
+    debt?.currency === "USD" ? "USD" : "UZS";
+
+  const getName = (debt) => {
+    return (
+      debt?.creditor ||
+      debt?.customer_name ||
+      debt?.customer?.name ||
+      (debt?.customer_id
+        ? `Mijoz #${debt.customer_id}`
+        : "Noma'lum qarz egasi")
+    );
   };
 
   const statistics = useMemo(() => {
-    let total = 0;
-    let paid = 0;
-    let remaining = 0;
-    let active = 0;
-    let completed = 0;
+    const result = {
+      UZS: {
+        total: 0,
+        paid: 0,
+        remaining: 0,
+        active: 0,
+        completed: 0,
+      },
+      USD: {
+        total: 0,
+        paid: 0,
+        remaining: 0,
+        active: 0,
+        completed: 0,
+      },
+    };
 
     debts.forEach((debt) => {
-      const amount = Number(debt.amount) || 0;
-      const paidAmount = Number(debt.paid) || 0;
+      const currency = getCurrency(debt);
+      const total = getTotal(debt);
+      const paid = getPaid(debt);
+      const remaining = getRemaining(debt);
 
-      const balance = Math.max(
-        Number(
-          debt.remaining ??
-            amount - paidAmount
-        ) || 0,
-        0
-      );
+      result[currency].total += total;
+      result[currency].paid += paid;
+      result[currency].remaining += remaining;
 
-      total += amount;
-      paid += paidAmount;
-      remaining += balance;
-
-      if (balance > 0) {
-        active++;
+      if (remaining > 0) {
+        result[currency].active += 1;
       } else {
-        completed++;
+        result[currency].completed += 1;
       }
     });
 
-    return {
-      total,
-      paid,
-      remaining,
-      active,
-      completed,
-    };
+    return result;
   }, [debts]);
 
   const filteredDebts = useMemo(() => {
     const q = search.toLowerCase().trim();
 
-    if (!q) {
-      return debts;
-    }
-
     return debts.filter((debt) => {
-      const customer = customers.find(
-        (item) =>
-          Number(item.id) ===
-          Number(debt.customer_id)
-      );
+      const currency = getCurrency(debt);
+      const remaining = getRemaining(debt);
+
+      if (
+        currencyFilter !== "ALL" &&
+        currency !== currencyFilter
+      ) {
+        return false;
+      }
+
+      if (
+        statusFilter === "ACTIVE" &&
+        remaining <= 0
+      ) {
+        return false;
+      }
+
+      if (
+        statusFilter === "COMPLETED" &&
+        remaining > 0
+      ) {
+        return false;
+      }
+
+      if (!q) return true;
 
       const text = [
         debt.id,
         debt.creditor,
         debt.title,
         debt.note,
-        customer?.name,
-        customer?.full_name,
-        customer?.phone,
+        debt.customer_name,
+        debt.customer?.name,
+        debt.customer_id,
       ]
         .join(" ")
         .toLowerCase();
 
       return text.includes(q);
     });
-  }, [debts, customers, search]);
+  }, [
+    debts,
+    search,
+    currencyFilter,
+    statusFilter,
+  ]);
 
-  const changeForm = (event) => {
-    const { name, value } = event.target;
+  const openAdd = () => {
+    setSelectedDebt(null);
 
-    setForm((old) => ({
-      ...old,
-      [name]: value,
-    }));
-  };
-
-  const resetForm = () => {
     setForm({
       creditor: "",
       title: "",
       amount: "",
       paid: "",
       currency: "UZS",
+      due_date: "",
       note: "",
-      customer_id: "",
     });
+
+    setShowDebtModal(true);
   };
 
-  const addDebt = async (event) => {
+  const openEdit = (debt) => {
+    setSelectedDebt(debt);
+
+    setForm({
+      creditor: debt.creditor || "",
+      title: debt.title || "",
+      amount: debt.amount ?? "",
+      paid: debt.paid ?? "",
+      currency: getCurrency(debt),
+      due_date: dateInput(debt.due_date),
+      note: debt.note || "",
+    });
+
+    setShowDebtModal(true);
+  };
+
+  const saveDebt = async (event) => {
     event.preventDefault();
 
     if (!form.creditor.trim()) {
@@ -250,20 +268,17 @@ function Debts() {
       return;
     }
 
-    if (
-      !form.amount ||
-      Number(form.amount) <= 0
-    ) {
+    const amount = Number(form.amount) || 0;
+    const paid = Number(form.paid) || 0;
+
+    if (amount <= 0) {
       alert("Qarz summasini kiriting");
       return;
     }
 
-    if (
-      Number(form.paid || 0) >
-      Number(form.amount)
-    ) {
+    if (paid < 0 || paid > amount) {
       alert(
-        "To'langan summa qarzdan katta bo'lishi mumkin emas"
+        "To'langan summa noto'g'ri"
       );
       return;
     }
@@ -271,30 +286,48 @@ function Debts() {
     try {
       setSaving(true);
 
-      await API.post("/debts/", {
+      const payload = {
         creditor: form.creditor.trim(),
         title: form.title || null,
-        amount: Number(form.amount),
-        paid: Number(form.paid || 0),
+        amount,
+        paid,
         currency: form.currency,
-        note: form.note || null,
-        customer_id: form.customer_id
-          ? Number(form.customer_id)
+        due_date: form.due_date
+          ? new Date(
+              `${form.due_date}T00:00:00`
+            ).toISOString()
           : null,
-      });
+        note: form.note || null,
+      };
 
-      setShowAdd(false);
-      resetForm();
+      if (selectedDebt) {
+        await API.put(
+          `/debts/${selectedDebt.id}`,
+          payload
+        );
+      } else {
+        await API.post("/debts/", payload);
+      }
+
+      setShowDebtModal(false);
+      setSelectedDebt(null);
 
       await loadDebts();
 
-      alert("Qarz muvaffaqiyatli qo'shildi");
+      alert(
+        selectedDebt
+          ? "Qarz yangilandi"
+          : "Qarz qo'shildi"
+      );
     } catch (error) {
-      console.error("Add debt error:", error);
+      console.error(
+        "Save debt error:",
+        error
+      );
 
       alert(
         error.response?.data?.detail ||
-          "Qarz qo'shib bo'lmadi"
+          "Qarzni saqlab bo'lmadi"
       );
     } finally {
       setSaving(false);
@@ -306,35 +339,25 @@ function Debts() {
 
     setPaymentForm({
       amount: "",
+      payment_date: new Date()
+        .toISOString()
+        .slice(0, 10),
       note: "",
     });
 
-    setShowPayment(true);
+    setShowPaymentModal(true);
   };
 
   const addPayment = async (event) => {
     event.preventDefault();
 
-    if (!selectedDebt) {
-      return;
-    }
+    if (!selectedDebt) return;
 
     const amount =
       Number(paymentForm.amount) || 0;
 
-    const total =
-      Number(selectedDebt.amount) || 0;
-
-    const paid =
-      Number(selectedDebt.paid) || 0;
-
-    const remaining = Math.max(
-      Number(
-        selectedDebt.remaining ??
-          total - paid
-      ) || 0,
-      0
-    );
+    const remaining =
+      getRemaining(selectedDebt);
 
     if (amount <= 0) {
       alert("To'lov summasini kiriting");
@@ -343,11 +366,10 @@ function Debts() {
 
     if (amount > remaining) {
       alert(
-        "Qoldiq: " +
-          money(
-            remaining,
-            selectedDebt.currency
-          )
+        `Qoldiq: ${money(
+          remaining,
+          getCurrency(selectedDebt)
+        )}`
       );
       return;
     }
@@ -359,17 +381,22 @@ function Debts() {
         `/debts/${selectedDebt.id}/payment`,
         {
           amount,
+          payment_date: paymentForm.payment_date
+            ? new Date(
+                `${paymentForm.payment_date}T00:00:00`
+              ).toISOString()
+            : null,
           note:
             paymentForm.note || null,
         }
       );
 
-      setShowPayment(false);
+      setShowPaymentModal(false);
       setSelectedDebt(null);
 
       await loadDebts();
 
-      alert("To'lov muvaffaqiyatli saqlandi");
+      alert("To'lov saqlandi");
     } catch (error) {
       console.error(
         "Payment error:",
@@ -399,7 +426,7 @@ function Debts() {
           : []
       );
 
-      setShowHistory(true);
+      setShowHistoryModal(true);
     } catch (error) {
       console.error(
         "History error:",
@@ -408,19 +435,134 @@ function Debts() {
 
       alert(
         error.response?.data?.detail ||
-          "To'lovlar tarixini yuklab bo'lmadi"
+          "To'lov tarixini yuklab bo'lmadi"
       );
+    }
+  };
+
+  const openSchedule = async (debt) => {
+    try {
+      setSelectedDebt(debt);
+
+      const response = await API.get(
+        `/debts/${debt.id}/schedule`
+      );
+
+      const data = response.data || null;
+
+      setSchedule(data);
+
+      setScheduleForm({
+        monthly_amount:
+          data?.monthly_amount ?? "",
+        next_payment_date: dateInput(
+          data?.next_payment_date
+        ),
+        duration_months:
+          data?.duration_months ?? "",
+        note: data?.note || "",
+      });
+
+      setShowScheduleModal(true);
+    } catch (error) {
+      console.error(
+        "Schedule error:",
+        error
+      );
+
+      setSchedule(null);
+
+      setScheduleForm({
+        monthly_amount: "",
+        next_payment_date: dateInput(
+          selectedDebt?.due_date
+        ),
+        duration_months: "",
+        note: "",
+      });
+
+      setShowScheduleModal(true);
+    }
+  };
+
+  const saveSchedule = async (event) => {
+    event.preventDefault();
+
+    if (!selectedDebt) return;
+
+    const monthly =
+      Number(
+        scheduleForm.monthly_amount
+      ) || 0;
+
+    if (monthly <= 0) {
+      alert(
+        "Oylik to'lov summasini kiriting"
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const payload = {
+        monthly_amount: monthly,
+        next_payment_date:
+          scheduleForm.next_payment_date
+            ? new Date(
+                `${scheduleForm.next_payment_date}T00:00:00`
+              ).toISOString()
+            : null,
+        duration_months:
+          scheduleForm.duration_months
+            ? Number(
+                scheduleForm.duration_months
+              )
+            : null,
+        note:
+          scheduleForm.note || null,
+      };
+
+      if (schedule?.id) {
+        await API.put(
+          `/debts/${selectedDebt.id}/schedule/${schedule.id}`,
+          payload
+        );
+      } else {
+        await API.post(
+          `/debts/${selectedDebt.id}/schedule`,
+          payload
+        );
+      }
+
+      setShowScheduleModal(false);
+
+      await loadDebts();
+
+      alert("To'lov rejasi saqlandi");
+    } catch (error) {
+      console.error(
+        "Schedule save error:",
+        error
+      );
+
+      alert(
+        error.response?.data?.detail ||
+          "To'lov rejasini saqlab bo'lmadi"
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
   const deleteDebt = async (debt) => {
     const ok = window.confirm(
-      `"${debt.creditor}" qarzini o'chirishni xohlaysizmi?`
+      `"${getName(
+        debt
+      )}" qarzini o'chirishni xohlaysizmi?`
     );
 
-    if (!ok) {
-      return;
-    }
+    if (!ok) return;
 
     try {
       setSaving(true);
@@ -447,905 +589,763 @@ function Debts() {
     }
   };
 
-  const customerName = (debt) => {
-    if (debt.creditor) {
-      return debt.creditor;
-    }
+  const activeDebts = debts.filter(
+    (debt) => getRemaining(debt) > 0
+  );
 
-    const customer = customers.find(
-      (item) =>
-        Number(item.id) ===
-        Number(debt.customer_id)
-    );
+  const completedDebts = debts.filter(
+    (debt) => getRemaining(debt) <= 0
+  );
 
-    return (
-      customer?.name ||
-      customer?.full_name ||
-      customer?.phone ||
-      "-"
-    );
-  };
+  const visibleDebts =
+    tab === "active"
+      ? activeDebts
+      : tab === "completed"
+      ? completedDebts
+      : filteredDebts;
 
-  const StatCard = ({
-    title,
-    value,
-    icon,
-    color,
-    subtitle,
-  }) => {
-    return (
-      <Card
-        sx={{
-          borderRadius: 3,
-          height: "100%",
-          boxShadow:
-            "0 8px 30px rgba(15,23,42,0.08)",
-          border:
-            "1px solid #eef2f7",
-        }}
-      >
-        <CardContent>
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-          >
-            <Box>
-              <Typography
-                color="text.secondary"
-                fontSize={14}
-                fontWeight={600}
-              >
-                {title}
-              </Typography>
-
-              <Typography
-                variant="h5"
-                fontWeight={800}
-                mt={1}
-              >
-                {value}
-              </Typography>
-
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                mt={0.5}
-              >
-                {subtitle}
-              </Typography>
-            </Box>
-
-            <Box
-              sx={{
-                width: 50,
-                height: 50,
-                borderRadius: 2.5,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: color,
-                color: "white",
-              }}
-            >
-              {icon}
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
-    );
-  };
+  const paymentTotal = payments.reduce(
+    (sum, item) =>
+      sum + (Number(item.amount) || 0),
+    0
+  );
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        background: "#f6f8fc",
-        p: {
-          xs: 2,
-          md: 3,
-        },
-      }}
-    >
-      <Stack
-        direction={{
-          xs: "column",
-          md: "row",
-        }}
-        justifyContent="space-between"
-        alignItems={{
-          xs: "stretch",
-          md: "center",
-        }}
-        spacing={2}
-        mb={3}
-      >
-        <Box>
-          <Typography
-            variant="h4"
-            fontWeight={900}
-            color="#111827"
-          >
+    <div style={pageStyle}>
+      <div style={headerStyle}>
+        <div>
+          <div style={eyebrowStyle}>
+            MOLIYA
+          </div>
+
+          <h1 style={titleStyle}>
             Qarzlar
-          </Typography>
+          </h1>
 
-          <Typography
-            color="text.secondary"
-            mt={0.5}
+          <p style={subtitleStyle}>
+            Barcha qarzlar, to'lovlar va
+            majburiy to'lov rejalarini boshqaring
+          </p>
+        </div>
+
+        <div style={headerActions}>
+          <button
+            onClick={loadDebts}
+            style={secondaryButton}
           >
-            Qarzlar, to'lovlar va moliyaviy nazorat
-          </Typography>
-        </Box>
+            ↻ Yangilash
+          </button>
 
-        <Stack
-          direction="row"
-          spacing={1}
-        >
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={loadAll}
-            sx={{
-              borderRadius: 2,
-              fontWeight: 700,
-            }}
+          <button
+            onClick={openAdd}
+            style={primaryButton}
           >
-            Yangilash
-          </Button>
+            + Qarz qo'shish
+          </button>
+        </div>
+      </div>
 
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() =>
-              setShowAdd(true)
-            }
-            sx={{
-              borderRadius: 2,
-              fontWeight: 700,
-            }}
-          >
-            Qarz qo'shish
-          </Button>
-        </Stack>
-      </Stack>
+      <div style={statsGrid}>
+        <StatCard
+          title="UZS qarz"
+          total={statistics.UZS.remaining}
+          subtitle={`${statistics.UZS.active} ta faol qarz`}
+          currency="UZS"
+        />
 
-      <Grid
-        container
-        spacing={2}
-        mb={3}
-      >
-        <Grid
-          item
-          xs={12}
-          sm={6}
-          lg={3}
+        <StatCard
+          title="USD qarz"
+          total={statistics.USD.remaining}
+          subtitle={`${statistics.USD.active} ta faol qarz`}
+          currency="USD"
+        />
+
+        <StatCard
+          title="UZS to'langan"
+          total={statistics.UZS.paid}
+          subtitle={`Jami ${statistics.UZS.total.toLocaleString(
+            "uz-UZ"
+          )} so'm`}
+          currency="UZS"
+          positive
+        />
+
+        <StatCard
+          title="USD to'langan"
+          total={statistics.USD.paid}
+          subtitle={`Jami ${statistics.USD.total.toLocaleString(
+            "uz-UZ"
+          )} $`}
+          currency="USD"
+          positive
+        />
+      </div>
+
+      <div style={tabsStyle}>
+        <button
+          onClick={() => setTab("all")}
+          style={
+            tab === "all"
+              ? activeTabStyle
+              : tabStyle
+          }
         >
-          <StatCard
-            title="Jami qarz"
-            value={money(
-              statistics.total
-            )}
-            icon={
-              <AccountBalanceWallet />
-            }
-            color="#2563eb"
-            subtitle={`${debts.length} ta qarz`}
-          />
-        </Grid>
+          Barcha qarzlar
+          <span style={tabBadge}>
+            {debts.length}
+          </span>
+        </button>
 
-        <Grid
-          item
-          xs={12}
-          sm={6}
-          lg={3}
+        <button
+          onClick={() => setTab("active")}
+          style={
+            tab === "active"
+              ? activeTabStyle
+              : tabStyle
+          }
         >
-          <StatCard
-            title="To'langan"
-            value={money(
-              statistics.paid
-            )}
-            icon={<CheckCircle />}
-            color="#16a34a"
-            subtitle="Qaytarilgan summa"
-          />
-        </Grid>
+          Mening qarzlarim
+          <span style={tabBadge}>
+            {activeDebts.length}
+          </span>
+        </button>
 
-        <Grid
-          item
-          xs={12}
-          sm={6}
-          lg={3}
+        <button
+          onClick={() => setTab("completed")}
+          style={
+            tab === "completed"
+              ? activeTabStyle
+              : tabStyle
+          }
         >
-          <StatCard
-            title="Qoldiq qarz"
-            value={money(
-              statistics.remaining
-            )}
-            icon={<Warning />}
-            color="#dc2626"
-            subtitle={`${statistics.active} ta faol qarz`}
-          />
-        </Grid>
+          Tugagan
+          <span style={tabBadge}>
+            {completedDebts.length}
+          </span>
+        </button>
+      </div>
 
-        <Grid
-          item
-          xs={12}
-          sm={6}
-          lg={3}
+      <div style={filterCard}>
+        <input
+          value={search}
+          onChange={(e) =>
+            setSearch(e.target.value)
+          }
+          placeholder="Qarz egasi, nomi yoki izoh bo'yicha qidirish..."
+          style={inputStyle}
+        />
+
+        <select
+          value={currencyFilter}
+          onChange={(e) =>
+            setCurrencyFilter(e.target.value)
+          }
+          style={selectStyle}
         >
-          <StatCard
-            title="Tugagan qarzlar"
-            value={
-              statistics.completed
-            }
-            icon={<TrendingDown />}
-            color="#7c3aed"
-            subtitle="To'liq yopilgan"
-          />
-        </Grid>
-      </Grid>
+          <option value="ALL">
+            Barcha valyuta
+          </option>
+          <option value="UZS">UZS</option>
+          <option value="USD">USD</option>
+        </select>
 
-      <Paper
-        sx={{
-          borderRadius: 3,
-          overflow: "hidden",
-          boxShadow:
-            "0 8px 30px rgba(15,23,42,0.07)",
-        }}
-      >
-        <Box
-          sx={{
-            p: 2,
-            background: "white",
-          }}
+        <select
+          value={statusFilter}
+          onChange={(e) =>
+            setStatusFilter(e.target.value)
+          }
+          style={selectStyle}
         >
-          <TextField
-            fullWidth
-            placeholder="Qarz, mijoz yoki izoh bo'yicha qidirish..."
-            value={search}
-            onChange={(event) =>
-              setSearch(event.target.value)
-            }
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              maxWidth: 650,
-            }}
-          />
-        </Box>
+          <option value="ALL">
+            Barcha holat
+          </option>
+          <option value="ACTIVE">
+            Faol qarzlar
+          </option>
+          <option value="COMPLETED">
+            Tugaganlar
+          </option>
+        </select>
+      </div>
 
-        <Divider />
+      <div style={sectionCard}>
+        <div style={sectionHeader}>
+          <div>
+            <h2 style={sectionTitle}>
+              Qarzlar ro'yxati
+            </h2>
+
+            <div style={sectionDescription}>
+              {visibleDebts.length} ta yozuv
+            </div>
+          </div>
+
+          <div style={separateCurrency}>
+            <span>
+              UZS:{" "}
+              <b>
+                {money(
+                  statistics.UZS.remaining,
+                  "UZS"
+                )}
+              </b>
+            </span>
+
+            <span>
+              USD:{" "}
+              <b>
+                {money(
+                  statistics.USD.remaining,
+                  "USD"
+                )}
+              </b>
+            </span>
+          </div>
+        </div>
 
         {loading ? (
-          <Box
-            sx={{
-              p: 8,
-              textAlign: "center",
-            }}
-          >
-            <Typography>
-              Qarzlar yuklanmoqda...
-            </Typography>
-          </Box>
-        ) : filteredDebts.length === 0 ? (
-          <Box
-            sx={{
-              p: 8,
-              textAlign: "center",
-            }}
-          >
-            <Typography fontSize={50}>
-              💰
-            </Typography>
+          <div style={emptyStyle}>
+            <div style={spinner}>⟳</div>
+            Qarzlar yuklanmoqda...
+          </div>
+        ) : visibleDebts.length === 0 ? (
+          <div style={emptyStyle}>
+            <div style={emptyIcon}>✓</div>
 
-            <Typography
-              variant="h6"
-              fontWeight={800}
-              mt={1}
-            >
-              Qarzlar topilmadi
-            </Typography>
+            <div style={emptyTitle}>
+              Qarz topilmadi
+            </div>
 
-            <Typography
-              color="text.secondary"
-              mt={1}
-            >
-              Yangi qarz qo'shish uchun yuqoridagi tugmani bosing.
-            </Typography>
-          </Box>
+            <div style={emptyText}>
+              Tanlangan filtr bo'yicha qarzlar mavjud
+              emas.
+            </div>
+          </div>
         ) : (
-          <Box
-            sx={{
-              width: "100%",
-              overflowX: "auto",
-            }}
-          >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse:
-                  "collapse",
-                minWidth: "1100px",
-              }}
-            >
+          <div style={tableWrapper}>
+            <table style={tableStyle}>
               <thead>
-                <tr
-                  style={{
-                    background: "#f8fafc",
-                  }}
-                >
-                  <th style={thStyle}>
-                    ID
-                  </th>
-                  <th style={thStyle}>
-                    Kimga
-                  </th>
-                  <th style={thStyle}>
-                    Sabab
-                  </th>
-                  <th style={thStyle}>
-                    Jami
-                  </th>
-                  <th style={thStyle}>
-                    To'langan
-                  </th>
-                  <th style={thStyle}>
-                    Qoldiq
-                  </th>
-                  <th style={thStyle}>
-                    Holat
-                  </th>
-                  <th style={thStyle}>
-                    Sana
-                  </th>
-                  <th style={thStyle}>
-                    Amallar
-                  </th>
+                <tr>
+                  <th style={thStyle}>Qarz egasi</th>
+                  <th style={thStyle}>Izoh</th>
+                  <th style={thStyle}>Jami</th>
+                  <th style={thStyle}>To'langan</th>
+                  <th style={thStyle}>Qoldiq</th>
+                  <th style={thStyle}>Valyuta</th>
+                  <th style={thStyle}>Muddat</th>
+                  <th style={thStyle}>Holat</th>
+                  <th style={thStyle}>Amallar</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredDebts.map(
-                  (debt) => {
-                    const total =
-                      Number(
-                        debt.amount
-                      ) || 0;
+                {visibleDebts.map((debt) => {
+                  const currency =
+                    getCurrency(debt);
 
-                    const paid =
-                      Number(
-                        debt.paid
-                      ) || 0;
+                  const total =
+                    getTotal(debt);
 
-                    const remaining =
-                      Math.max(
-                        Number(
-                          debt.remaining ??
-                            total - paid
-                        ) || 0,
-                        0
-                      );
+                  const paid =
+                    getPaid(debt);
 
-                    return (
-                      <tr
-                        key={debt.id}
+                  const remaining =
+                    getRemaining(debt);
+
+                  return (
+                    <tr
+                      key={debt.id}
+                      style={rowStyle}
+                    >
+                      <td style={tdStyle}>
+                        <div style={personName}>
+                          {getName(debt)}
+                        </div>
+
+                        <div style={smallText}>
+                          #{debt.id}
+                        </div>
+                      </td>
+
+                      <td style={tdStyle}>
+                        <div>
+                          {debt.title || "—"}
+                        </div>
+
+                        {debt.note && (
+                          <div
+                            style={smallText}
+                          >
+                            {debt.note}
+                          </div>
+                        )}
+                      </td>
+
+                      <td style={tdStyle}>
+                        <b>
+                          {money(
+                            total,
+                            currency
+                          )}
+                        </b>
+                      </td>
+
+                      <td
                         style={{
-                          borderBottom:
-                            "1px solid #eef2f7",
+                          ...tdStyle,
+                          color: "#15803d",
                         }}
                       >
-                        <td
+                        {money(
+                          paid,
+                          currency
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          ...tdStyle,
+                          color:
+                            remaining > 0
+                              ? "#dc2626"
+                              : "#15803d",
+                          fontWeight: 800,
+                        }}
+                      >
+                        {money(
+                          remaining,
+                          currency
+                        )}
+                      </td>
+
+                      <td style={tdStyle}>
+                        <span
                           style={
-                            tdStyle
+                            currency === "USD"
+                              ? usdBadge
+                              : uzsBadge
                           }
                         >
-                          #{debt.id}
-                        </td>
+                          {currency}
+                        </span>
+                      </td>
 
-                        <td
-                          style={{
-                            ...tdStyle,
-                            fontWeight: 800,
-                          }}
-                        >
-                          {customerName(
-                            debt
-                          )}
-                        </td>
+                      <td style={tdStyle}>
+                        {debt.due_date
+                          ? formatDate(
+                              debt.due_date
+                            )
+                          : "Belgilanmagan"}
+                      </td>
 
-                        <td
-                          style={
-                            tdStyle
-                          }
-                        >
-                          {debt.title ||
-                            "-"}
-                        </td>
-
-                        <td
-                          style={
-                            tdStyle
-                          }
-                        >
-                          <b>
-                            {money(
-                              total,
-                              debt.currency
-                            )}
-                          </b>
-                        </td>
-
-                        <td
-                          style={{
-                            ...tdStyle,
-                            color: "#16a34a",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {money(
-                            paid,
-                            debt.currency
-                          )}
-                        </td>
-
-                        <td
-                          style={{
-                            ...tdStyle,
-                            color:
-                              remaining > 0
-                                ? "#dc2626"
-                                : "#16a34a",
-                            fontWeight: 900,
-                          }}
-                        >
-                          {money(
-                            remaining,
-                            debt.currency
-                          )}
-                        </td>
-
-                        <td
-                          style={
-                            tdStyle
-                          }
-                        >
-                          {remaining <= 0 ? (
-                            <Chip
-                              size="small"
-                              label="Tugagan"
-                              color="success"
-                              icon={
-                                <CheckCircle />
-                              }
-                            />
-                          ) : (
-                            <Chip
-                              size="small"
-                              label="Faol qarz"
-                              color="error"
-                            />
-                          )}
-                        </td>
-
-                        <td
-                          style={
-                            tdStyle
-                          }
-                        >
-                          {dateFormat(
-                            debt.created_at
-                          )}
-                        </td>
-
-                        <td
-                          style={
-                            tdStyle
-                          }
-                        >
-                          <Stack
-                            direction="row"
-                            spacing={0.5}
+                      <td style={tdStyle}>
+                        {remaining <= 0 ? (
+                          <span
+                            style={completedBadge}
                           >
-                            {remaining > 0 && (
-                              <IconButton
-                                size="small"
-                                color="success"
-                                title="To'lov"
-                                onClick={() =>
-                                  openPayment(
-                                    debt
-                                  )
-                                }
-                              >
-                                <Payments />
-                              </IconButton>
-                            )}
+                            ✓ Tugagan
+                          </span>
+                        ) : (
+                          <span
+                            style={activeBadge}
+                          >
+                            ● Faol
+                          </span>
+                        )}
+                      </td>
 
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              title="Tarix"
-                              onClick={() =>
-                                openHistory(
-                                  debt
-                                )
-                              }
-                            >
-                              <History />
-                            </IconButton>
+                      <td style={actionsTd}>
+                        <button
+                          onClick={() =>
+                            openPayment(debt)
+                          }
+                          style={actionGreen}
+                          title="To'lov"
+                        >
+                          To'lov
+                        </button>
 
-                            <IconButton
-                              size="small"
-                              color="error"
-                              title="O'chirish"
-                              onClick={() =>
-                                deleteDebt(
-                                  debt
-                                )
-                              }
-                            >
-                              <Delete />
-                            </IconButton>
-                          </Stack>
-                        </td>
-                      </tr>
-                    );
-                  }
-                )}
+                        <button
+                          onClick={() =>
+                            openHistory(debt)
+                          }
+                          style={actionBlue}
+                          title="Tarix"
+                        >
+                          Tarix
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            openSchedule(debt)
+                          }
+                          style={actionPurple}
+                          title="To'lov rejasi"
+                        >
+                          Reja
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            openEdit(debt)
+                          }
+                          style={actionGray}
+                        >
+                          Tahrir
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            deleteDebt(debt)
+                          }
+                          style={actionRed}
+                        >
+                          O'chir
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          </Box>
+          </div>
         )}
-      </Paper>
+      </div>
 
-      {/* QARZ QO'SHISH */}
+      {/* ADD / EDIT DEBT */}
 
-      <Dialog
-        open={showAdd}
-        onClose={() =>
-          !saving &&
-          setShowAdd(false)
-        }
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle
-          sx={{ fontWeight: 800 }}
+      {showDebtModal && (
+        <Modal
+          title={
+            selectedDebt
+              ? "Qarzni tahrirlash"
+              : "Yangi qarz"
+          }
+          onClose={() =>
+            setShowDebtModal(false)
+          }
         >
-          Yangi qarz qo'shish
-        </DialogTitle>
+          <form onSubmit={saveDebt}>
+            <div style={formGrid}>
+              <label style={labelStyle}>
+                Qarz egasi *
+                <input
+                  name="creditor"
+                  value={form.creditor}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      creditor: e.target.value,
+                    })
+                  }
+                  placeholder="Masalan: Agrobank"
+                  style={inputStyle}
+                  required
+                />
+              </label>
 
-        <DialogContent>
-          <Stack
-            spacing={2}
-            mt={1}
-          >
-            <TextField
-              fullWidth
-              label="Kimga qarz *"
-              name="creditor"
-              value={form.creditor}
-              onChange={changeForm}
-            />
+              <label style={labelStyle}>
+                Qarz nomi
+                <input
+                  name="title"
+                  value={form.title}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      title: e.target.value,
+                    })
+                  }
+                  placeholder="Masalan: Kredit"
+                  style={inputStyle}
+                />
+              </label>
 
-            <TextField
-              select
-              fullWidth
-              label="Mijoz"
-              name="customer_id"
-              value={form.customer_id}
-              onChange={changeForm}
-            >
-              <MenuItem value="">
-                Mijoz tanlanmagan
-              </MenuItem>
+              <label style={labelStyle}>
+                Jami summa *
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={form.amount}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      amount: e.target.value,
+                    })
+                  }
+                  style={inputStyle}
+                  required
+                />
+              </label>
 
-              {customers.map(
-                (customer) => (
-                  <MenuItem
-                    key={customer.id}
-                    value={customer.id}
-                  >
-                    {customer.name ||
-                      customer.full_name ||
-                      customer.phone ||
-                      `Mijoz #${customer.id}`}
-                  </MenuItem>
-                )
-              )}
-            </TextField>
+              <label style={labelStyle}>
+                Valyuta *
+                <select
+                  value={form.currency}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      currency: e.target.value,
+                    })
+                  }
+                  style={inputStyle}
+                >
+                  <option value="UZS">
+                    UZS — so'm
+                  </option>
 
-            <TextField
-              fullWidth
-              label="Qarz sababi"
-              name="title"
-              value={form.title}
-              onChange={changeForm}
-              placeholder="Masalan: Kamera uchun"
-            />
+                  <option value="USD">
+                    USD — dollar
+                  </option>
+                </select>
+              </label>
 
-            <TextField
-              fullWidth
-              type="number"
-              label="Jami qarz *"
-              name="amount"
-              value={form.amount}
-              onChange={changeForm}
-            />
+              <label style={labelStyle}>
+                To'langan
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={form.paid}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      paid: e.target.value,
+                    })
+                  }
+                  style={inputStyle}
+                />
+              </label>
 
-            <TextField
-              fullWidth
-              type="number"
-              label="Boshlang'ich to'lov"
-              name="paid"
-              value={form.paid}
-              onChange={changeForm}
-            />
+              <label style={labelStyle}>
+                Muddat
+                <input
+                  type="date"
+                  value={form.due_date}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      due_date: e.target.value,
+                    })
+                  }
+                  style={inputStyle}
+                />
+              </label>
+            </div>
 
-            <TextField
-              select
-              fullWidth
-              label="Valyuta"
-              name="currency"
-              value={form.currency}
-              onChange={changeForm}
-            >
-              <MenuItem value="UZS">
-                UZS — so'm
-              </MenuItem>
+            <label style={labelStyle}>
+              Izoh
+              <textarea
+                value={form.note}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    note: e.target.value,
+                  })
+                }
+                placeholder="Qo'shimcha ma'lumot..."
+                style={textareaStyle}
+              />
+            </label>
 
-              <MenuItem value="USD">
-                USD — dollar
-              </MenuItem>
-            </TextField>
-
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Izoh"
-              name="note"
-              value={form.note}
-              onChange={changeForm}
-            />
-          </Stack>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            onClick={() =>
-              setShowAdd(false)
-            }
-            disabled={saving}
-          >
-            Bekor qilish
-          </Button>
-
-          <Button
-            variant="contained"
-            onClick={addDebt}
-            disabled={saving}
-          >
-            {saving
-              ? "Saqlanmoqda..."
-              : "Qarz qo'shish"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* TO'LOV */}
-
-      <Dialog
-        open={showPayment}
-        onClose={() =>
-          !saving &&
-          setShowPayment(false)
-        }
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle
-          sx={{ fontWeight: 800 }}
-        >
-          To'lov qilish
-        </DialogTitle>
-
-        <DialogContent>
-          {selectedDebt && (
-            <Stack
-              spacing={2}
-              mt={1}
-            >
-              <Card
-                sx={{
-                  background: "#f8fafc",
-                  borderRadius: 2,
-                }}
+            <div style={modalActions}>
+              <button
+                type="button"
+                onClick={() =>
+                  setShowDebtModal(false)
+                }
+                style={secondaryButton}
               >
-                <CardContent>
-                  <Typography
-                    fontWeight={800}
-                  >
-                    {customerName(
-                      selectedDebt
-                    )}
-                  </Typography>
+                Bekor qilish
+              </button>
 
-                  <Typography
-                    color="text.secondary"
-                  >
-                    Jami:{" "}
-                    {money(
-                      selectedDebt.amount,
-                      selectedDebt.currency
-                    )}
-                  </Typography>
+              <button
+                type="submit"
+                disabled={saving}
+                style={primaryButton}
+              >
+                {saving
+                  ? "Saqlanmoqda..."
+                  : selectedDebt
+                  ? "Saqlash"
+                  : "Qarz qo'shish"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
-                  <Typography
-                    color="success.main"
-                    fontWeight={700}
-                  >
-                    To'langan:{" "}
-                    {money(
-                      selectedDebt.paid,
-                      selectedDebt.currency
-                    )}
-                  </Typography>
+      {/* PAYMENT */}
 
-                  <Typography
-                    color="error.main"
-                    fontWeight={900}
-                  >
-                    Qoldiq:{" "}
-                    {money(
-                      selectedDebt.remaining ??
-                        Number(
-                          selectedDebt.amount
-                        ) -
-                          Number(
-                            selectedDebt.paid
-                          ),
-                      selectedDebt.currency
-                    )}
-                  </Typography>
-                </CardContent>
-              </Card>
-
-              <TextField
-                fullWidth
-                type="number"
-                label="To'lov summasi *"
-                value={
-                  paymentForm.amount
-                }
-                onChange={(event) =>
-                  setPaymentForm(
-                    (old) => ({
-                      ...old,
-                      amount:
-                        event.target.value,
-                    })
-                  )
-                }
-              />
-
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Izoh"
-                value={
-                  paymentForm.note
-                }
-                onChange={(event) =>
-                  setPaymentForm(
-                    (old) => ({
-                      ...old,
-                      note:
-                        event.target.value,
-                    })
-                  )
-                }
-              />
-            </Stack>
-          )}
-        </DialogContent>
-
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            onClick={() =>
-              setShowPayment(false)
-            }
-            disabled={saving}
-          >
-            Bekor qilish
-          </Button>
-
-          <Button
-            variant="contained"
-            color="success"
-            onClick={addPayment}
-            disabled={saving}
-            startIcon={<Payments />}
-          >
-            {saving
-              ? "Saqlanmoqda..."
-              : "To'lovni saqlash"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* TARIX */}
-
-      <Dialog
-        open={showHistory}
-        onClose={() =>
-          setShowHistory(false)
-        }
-        fullWidth
-        maxWidth="md"
-      >
-        <DialogTitle
-          sx={{ fontWeight: 800 }}
+      {showPaymentModal && selectedDebt && (
+        <Modal
+          title="Qarzga to'lov"
+          onClose={() =>
+            setShowPaymentModal(false)
+          }
         >
-          To'lovlar tarixi
-        </DialogTitle>
+          <div style={paymentInfo}>
+            <div>
+              <span>Qarz egasi</span>
+              <b>
+                {getName(selectedDebt)}
+              </b>
+            </div>
 
-        <DialogContent>
-          {selectedDebt && (
-            <Typography
-              fontWeight={700}
-              mb={2}
-            >
-              {customerName(
-                selectedDebt
-              )}
-            </Typography>
-          )}
+            <div>
+              <span>Qoldiq</span>
+              <strong>
+                {money(
+                  getRemaining(
+                    selectedDebt
+                  ),
+                  getCurrency(
+                    selectedDebt
+                  )
+                )}
+              </strong>
+            </div>
+          </div>
+
+          <form onSubmit={addPayment}>
+            <label style={labelStyle}>
+              To'lov summasi *
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={paymentForm.amount}
+                onChange={(e) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    amount: e.target.value,
+                  })
+                }
+                style={inputStyle}
+                required
+              />
+            </label>
+
+            <label style={labelStyle}>
+              To'lov sanasi
+              <input
+                type="date"
+                value={
+                  paymentForm.payment_date
+                }
+                onChange={(e) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    payment_date:
+                      e.target.value,
+                  })
+                }
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={labelStyle}>
+              Izoh
+              <textarea
+                value={paymentForm.note}
+                onChange={(e) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    note: e.target.value,
+                  })
+                }
+                style={textareaStyle}
+              />
+            </label>
+
+            <div style={modalActions}>
+              <button
+                type="button"
+                onClick={() =>
+                  setShowPaymentModal(false)
+                }
+                style={secondaryButton}
+              >
+                Bekor qilish
+              </button>
+
+              <button
+                type="submit"
+                disabled={saving}
+                style={primaryButton}
+              >
+                {saving
+                  ? "Saqlanmoqda..."
+                  : "To'lovni saqlash"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* PAYMENT HISTORY */}
+
+      {showHistoryModal && selectedDebt && (
+        <Modal
+          title={`To'lov tarixi — ${getName(
+            selectedDebt
+          )}`}
+          wide
+          onClose={() =>
+            setShowHistoryModal(false)
+          }
+        >
+          <div style={historySummary}>
+            <div>
+              <span>Jami qarz</span>
+              <b>
+                {money(
+                  getTotal(selectedDebt),
+                  getCurrency(
+                    selectedDebt
+                  )
+                )}
+              </b>
+            </div>
+
+            <div>
+              <span>To'langan</span>
+              <b style={{ color: "#15803d" }}>
+                {money(
+                  getPaid(selectedDebt),
+                  getCurrency(
+                    selectedDebt
+                  )
+                )}
+              </b>
+            </div>
+
+            <div>
+              <span>Qoldiq</span>
+              <b style={{ color: "#dc2626" }}>
+                {money(
+                  getRemaining(
+                    selectedDebt
+                  ),
+                  getCurrency(
+                    selectedDebt
+                  )
+                )}
+              </b>
+            </div>
+          </div>
 
           {payments.length === 0 ? (
-            <Box
-              sx={{
-                p: 5,
-                textAlign: "center",
-                background: "#f8fafc",
-                borderRadius: 2,
-              }}
-            >
-              <Typography
-                color="text.secondary"
-              >
-                Hali to'lovlar mavjud emas
-              </Typography>
-            </Box>
+            <div style={emptyStyle}>
+              Hozircha to'lovlar tarixi mavjud emas.
+            </div>
           ) : (
-            <Box
-              sx={{
-                width: "100%",
-                overflowX: "auto",
-              }}
-            >
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse:
-                    "collapse",
-                }}
-              >
+            <div style={tableWrapper}>
+              <table style={tableStyle}>
                 <thead>
-                  <tr
-                    style={{
-                      background:
-                        "#f8fafc",
-                    }}
-                  >
+                  <tr>
                     <th style={thStyle}>
-                      ID
+                      Sana
                     </th>
 
                     <th style={thStyle}>
@@ -1357,98 +1357,796 @@ function Debts() {
                     </th>
 
                     <th style={thStyle}>
-                      Sana
+                      Chek
                     </th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {payments.map(
-                    (payment) => (
-                      <tr
-                        key={
-                          payment.id
-                        }
+                  {payments.map((payment) => (
+                    <tr key={payment.id}>
+                      <td style={tdStyle}>
+                        {formatDate(
+                          payment.payment_date ||
+                            payment.created_at
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          ...tdStyle,
+                          fontWeight: 800,
+                        }}
                       >
-                        <td
-                          style={
-                            tdStyle
-                          }
-                        >
-                          #{payment.id}
-                        </td>
+                        {money(
+                          payment.amount,
+                          getCurrency(
+                            selectedDebt
+                          )
+                        )}
+                      </td>
 
-                        <td
-                          style={{
-                            ...tdStyle,
-                            color:
-                              "#16a34a",
-                            fontWeight:
-                              800,
-                          }}
-                        >
-                          {money(
-                            payment.amount,
-                            payment.currency ||
-                              selectedDebt?.currency
-                          )}
-                        </td>
+                      <td style={tdStyle}>
+                        {payment.note || "—"}
+                      </td>
 
-                        <td
-                          style={
-                            tdStyle
-                          }
-                        >
-                          {payment.note ||
-                            "-"}
-                        </td>
-
-                        <td
-                          style={
-                            tdStyle
-                          }
-                        >
-                          {dateFormat(
-                            payment.payment_date ||
-                              payment.created_at
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  )}
+                      <td style={tdStyle}>
+                        {payment.receipt_path ||
+                        payment.receipt_name ? (
+                          <span
+                            style={completedBadge}
+                          >
+                            📎 Biriktirilgan
+                          </span>
+                        ) : (
+                          <span
+                            style={smallText}
+                          >
+                            Yo'q
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
-            </Box>
+            </div>
           )}
-        </DialogContent>
 
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            onClick={() =>
-              setShowHistory(false)
-            }
-          >
-            Yopish
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          <div style={historyTotal}>
+            Tarixdagi jami:
+            <b>
+              {" "}
+              {money(
+                paymentTotal,
+                getCurrency(selectedDebt)
+              )}
+            </b>
+          </div>
+        </Modal>
+      )}
+
+      {/* SCHEDULE */}
+
+      {showScheduleModal && selectedDebt && (
+        <Modal
+          title={`To'lov rejasi — ${getName(
+            selectedDebt
+          )}`}
+          onClose={() =>
+            setShowScheduleModal(false)
+          }
+        >
+          <div style={scheduleBox}>
+            <div>
+              <span>Qoldiq qarz</span>
+              <b>
+                {money(
+                  getRemaining(
+                    selectedDebt
+                  ),
+                  getCurrency(
+                    selectedDebt
+                  )
+                )}
+              </b>
+            </div>
+          </div>
+
+          <form onSubmit={saveSchedule}>
+            <label style={labelStyle}>
+              Oylik to'lov *
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={
+                  scheduleForm.monthly_amount
+                }
+                onChange={(e) =>
+                  setScheduleForm({
+                    ...scheduleForm,
+                    monthly_amount:
+                      e.target.value,
+                  })
+                }
+                style={inputStyle}
+                required
+              />
+            </label>
+
+            <label style={labelStyle}>
+              Keyingi to'lov sanasi
+              <input
+                type="date"
+                value={
+                  scheduleForm.next_payment_date
+                }
+                onChange={(e) =>
+                  setScheduleForm({
+                    ...scheduleForm,
+                    next_payment_date:
+                      e.target.value,
+                  })
+                }
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={labelStyle}>
+              Muddat — oy
+              <input
+                type="number"
+                min="1"
+                value={
+                  scheduleForm.duration_months
+                }
+                onChange={(e) =>
+                  setScheduleForm({
+                    ...scheduleForm,
+                    duration_months:
+                      e.target.value,
+                  })
+                }
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={labelStyle}>
+              Izoh
+              <textarea
+                value={scheduleForm.note}
+                onChange={(e) =>
+                  setScheduleForm({
+                    ...scheduleForm,
+                    note: e.target.value,
+                  })
+                }
+                style={textareaStyle}
+              />
+            </label>
+
+            <div style={modalActions}>
+              <button
+                type="button"
+                onClick={() =>
+                  setShowScheduleModal(false)
+                }
+                style={secondaryButton}
+              >
+                Bekor qilish
+              </button>
+
+              <button
+                type="submit"
+                disabled={saving}
+                style={primaryButton}
+              >
+                {saving
+                  ? "Saqlanmoqda..."
+                  : "Rejani saqlash"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
   );
 }
 
-const thStyle = {
-  padding: "14px 16px",
-  textAlign: "left",
-  fontSize: "13px",
+function StatCard({
+  title,
+  total,
+  subtitle,
+  currency,
+  positive,
+}) {
+  return (
+    <div style={statCardStyle}>
+      <div style={statTop}>
+        <span style={statTitle}>
+          {title}
+        </span>
+
+        <span
+          style={
+            currency === "USD"
+              ? usdBadge
+              : uzsBadge
+          }
+        >
+          {currency}
+        </span>
+      </div>
+
+      <div
+        style={{
+          ...statNumber,
+          color: positive
+            ? "#15803d"
+            : "#0f172a",
+        }}
+      >
+        {new Intl.NumberFormat(
+          "uz-UZ"
+        ).format(total)}
+        {currency === "USD"
+          ? " $"
+          : " so'm"}
+      </div>
+
+      <div style={statSubtitle}>
+        {subtitle}
+      </div>
+    </div>
+  );
+}
+
+function Modal({
+  title,
+  children,
+  onClose,
+  wide,
+}) {
+  return (
+    <div style={overlayStyle}>
+      <div
+        style={{
+          ...modalStyle,
+          maxWidth: wide ? "1000px" : "650px",
+        }}
+      >
+        <div style={modalHeader}>
+          <h2 style={modalTitle}>
+            {title}
+          </h2>
+
+          <button
+            onClick={onClose}
+            style={closeButton}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={modalContent}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const pageStyle = {
+  padding: "28px",
+  width: "100%",
+  boxSizing: "border-box",
+  background: "#f8fafc",
+  minHeight: "100vh",
+};
+
+const headerStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "20px",
+  marginBottom: "24px",
+};
+
+const eyebrowStyle = {
   color: "#64748b",
+  fontSize: "12px",
   fontWeight: 800,
+  letterSpacing: "1.5px",
+  marginBottom: "5px",
+};
+
+const titleStyle = {
+  margin: 0,
+  color: "#0f172a",
+  fontSize: "30px",
+};
+
+const subtitleStyle = {
+  margin: "7px 0 0",
+  color: "#64748b",
+  fontSize: "14px",
+};
+
+const headerActions = {
+  display: "flex",
+  gap: "10px",
+};
+
+const primaryButton = {
+  border: "none",
+  borderRadius: "9px",
+  padding: "11px 17px",
+  background: "#2563eb",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: 700,
+  fontSize: "14px",
+};
+
+const secondaryButton = {
+  border: "1px solid #cbd5e1",
+  borderRadius: "9px",
+  padding: "10px 15px",
+  background: "#fff",
+  color: "#334155",
+  cursor: "pointer",
+  fontWeight: 650,
+  fontSize: "14px",
+};
+
+const statsGrid = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(4, minmax(0, 1fr))",
+  gap: "15px",
+  marginBottom: "18px",
+};
+
+const statCardStyle = {
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "14px",
+  padding: "18px",
+  boxShadow:
+    "0 2px 8px rgba(15,23,42,0.04)",
+};
+
+const statTop = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+
+const statTitle = {
+  color: "#64748b",
+  fontSize: "13px",
+  fontWeight: 700,
+};
+
+const statNumber = {
+  marginTop: "12px",
+  fontSize: "23px",
+  fontWeight: 850,
+};
+
+const statSubtitle = {
+  marginTop: "7px",
+  color: "#94a3b8",
+  fontSize: "12px",
+};
+
+const tabsStyle = {
+  display: "flex",
+  gap: "5px",
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "12px",
+  padding: "5px",
+  marginBottom: "14px",
+};
+
+const tabStyle = {
+  border: "none",
+  background: "transparent",
+  color: "#64748b",
+  padding: "10px 14px",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const activeTabStyle = {
+  ...tabStyle,
+  background: "#eff6ff",
+  color: "#2563eb",
+};
+
+const tabBadge = {
+  marginLeft: "7px",
+  background: "#e2e8f0",
+  padding: "2px 7px",
+  borderRadius: "20px",
+  fontSize: "11px",
+};
+
+const filterCard = {
+  display: "grid",
+  gridTemplateColumns:
+    "minmax(250px, 1fr) 180px 180px",
+  gap: "10px",
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  padding: "13px",
+  borderRadius: "12px",
+  marginBottom: "16px",
+};
+
+const inputStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "11px 12px",
+  border: "1px solid #cbd5e1",
+  borderRadius: "9px",
+  fontSize: "14px",
+  background: "#fff",
+  outline: "none",
+};
+
+const selectStyle = {
+  ...inputStyle,
+  cursor: "pointer",
+};
+
+const sectionCard = {
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "14px",
+  overflow: "hidden",
+};
+
+const sectionHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "18px 20px",
+  borderBottom: "1px solid #e2e8f0",
+};
+
+const sectionTitle = {
+  margin: 0,
+  fontSize: "18px",
+  color: "#0f172a",
+};
+
+const sectionDescription = {
+  marginTop: "4px",
+  color: "#94a3b8",
+  fontSize: "12px",
+};
+
+const separateCurrency = {
+  display: "flex",
+  gap: "15px",
+  color: "#475569",
+  fontSize: "13px",
+};
+
+const tableWrapper = {
+  width: "100%",
+  overflowX: "auto",
+};
+
+const tableStyle = {
+  width: "100%",
+  borderCollapse: "collapse",
+  minWidth: "1100px",
+};
+
+const thStyle = {
+  padding: "13px 14px",
+  textAlign: "left",
+  background: "#f8fafc",
+  color: "#64748b",
+  fontSize: "12px",
+  fontWeight: 800,
+  borderBottom: "1px solid #e2e8f0",
   whiteSpace: "nowrap",
 };
 
 const tdStyle = {
-  padding: "14px 16px",
-  fontSize: "14px",
+  padding: "13px 14px",
+  borderBottom: "1px solid #f1f5f9",
+  color: "#334155",
+  fontSize: "13px",
   whiteSpace: "nowrap",
+};
+
+const rowStyle = {
+  transition: "background .15s",
+};
+
+const actionsTd = {
+  ...tdStyle,
+  display: "flex",
+  gap: "5px",
+  flexWrap: "wrap",
+};
+
+const personName = {
+  fontWeight: 800,
+  color: "#0f172a",
+};
+
+const smallText = {
+  color: "#94a3b8",
+  fontSize: "11px",
+  marginTop: "3px",
+  whiteSpace: "normal",
+  maxWidth: "200px",
+};
+
+const uzsBadge = {
+  display: "inline-block",
+  background: "#ecfdf5",
+  color: "#047857",
+  padding: "4px 8px",
+  borderRadius: "6px",
+  fontSize: "11px",
+  fontWeight: 800,
+};
+
+const usdBadge = {
+  display: "inline-block",
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  padding: "4px 8px",
+  borderRadius: "6px",
+  fontSize: "11px",
+  fontWeight: 800,
+};
+
+const activeBadge = {
+  display: "inline-block",
+  background: "#fff7ed",
+  color: "#c2410c",
+  padding: "5px 8px",
+  borderRadius: "7px",
+  fontSize: "11px",
+  fontWeight: 800,
+};
+
+const completedBadge = {
+  display: "inline-block",
+  background: "#ecfdf5",
+  color: "#15803d",
+  padding: "5px 8px",
+  borderRadius: "7px",
+  fontSize: "11px",
+  fontWeight: 800,
+};
+
+const actionGreen = {
+  border: "none",
+  background: "#ecfdf5",
+  color: "#15803d",
+  padding: "6px 8px",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontSize: "11px",
+  fontWeight: 700,
+};
+
+const actionBlue = {
+  border: "none",
+  background: "#eff6ff",
+  color: "#2563eb",
+  padding: "6px 8px",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontSize: "11px",
+  fontWeight: 700,
+};
+
+const actionPurple = {
+  border: "none",
+  background: "#f5f3ff",
+  color: "#7c3aed",
+  padding: "6px 8px",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontSize: "11px",
+  fontWeight: 700,
+};
+
+const actionGray = {
+  border: "none",
+  background: "#f1f5f9",
+  color: "#475569",
+  padding: "6px 8px",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontSize: "11px",
+  fontWeight: 700,
+};
+
+const actionRed = {
+  border: "none",
+  background: "#fef2f2",
+  color: "#dc2626",
+  padding: "6px 8px",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontSize: "11px",
+  fontWeight: 700,
+};
+
+const emptyStyle = {
+  padding: "60px 20px",
+  textAlign: "center",
+  color: "#94a3b8",
+};
+
+const emptyIcon = {
+  margin: "0 auto 10px",
+  width: "42px",
+  height: "42px",
+  borderRadius: "50%",
+  background: "#ecfdf5",
+  color: "#16a34a",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "20px",
+  fontWeight: 800,
+};
+
+const emptyTitle = {
+  color: "#475569",
+  fontWeight: 800,
+};
+
+const emptyText = {
+  marginTop: "5px",
+  fontSize: "13px",
+};
+
+const spinner = {
+  fontSize: "25px",
+  marginBottom: "10px",
+};
+
+const overlayStyle = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15,23,42,0.55)",
+  zIndex: 9999,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "20px",
+  overflowY: "auto",
+};
+
+const modalStyle = {
+  width: "100%",
+  background: "#fff",
+  borderRadius: "16px",
+  boxShadow:
+    "0 20px 60px rgba(0,0,0,.2)",
+  maxHeight: "92vh",
+  overflow: "auto",
+};
+
+const modalHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "17px 20px",
+  borderBottom: "1px solid #e2e8f0",
+};
+
+const modalTitle = {
+  margin: 0,
+  fontSize: "19px",
+  color: "#0f172a",
+};
+
+const closeButton = {
+  border: "none",
+  background: "#f1f5f9",
+  width: "34px",
+  height: "34px",
+  borderRadius: "8px",
+  fontSize: "23px",
+  color: "#475569",
+  cursor: "pointer",
+};
+
+const modalContent = {
+  padding: "20px",
+};
+
+const formGrid = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(2, minmax(0, 1fr))",
+  gap: "14px",
+};
+
+const labelStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "7px",
+  color: "#475569",
+  fontSize: "13px",
+  fontWeight: 700,
+  marginBottom: "14px",
+};
+
+const textareaStyle = {
+  width: "100%",
+  minHeight: "90px",
+  boxSizing: "border-box",
+  padding: "11px 12px",
+  border: "1px solid #cbd5e1",
+  borderRadius: "9px",
+  fontSize: "14px",
+  resize: "vertical",
+  fontFamily: "inherit",
+  outline: "none",
+};
+
+const modalActions = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "9px",
+  marginTop: "20px",
+};
+
+const paymentInfo = {
+  display: "grid",
+  gridTemplateColumns:
+    "1fr 1fr",
+  gap: "10px",
+  padding: "14px",
+  background: "#f8fafc",
+  borderRadius: "10px",
+  marginBottom: "18px",
+};
+
+const paymentInfoItem = {
+  display: "flex",
+  flexDirection: "column",
+};
+
+const historySummary = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(3, 1fr)",
+  gap: "10px",
+  marginBottom: "18px",
+};
+
+const scheduleBox = {
+  padding: "15px",
+  background: "#f5f3ff",
+  borderRadius: "10px",
+  marginBottom: "18px",
+};
+
+const historyTotal = {
+  textAlign: "right",
+  marginTop: "15px",
+  padding: "12px",
+  background: "#f8fafc",
+  borderRadius: "8px",
+  color: "#475569",
 };
 
 export default Debts;
