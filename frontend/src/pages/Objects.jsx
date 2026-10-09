@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const API = axios.create({ baseURL: "http://127.0.0.1:8001", timeout: 20000 });
+const API = axios.create({ baseURL: "https://safe-home-erp.onrender.com", timeout: 20000 });
 
 const STATUS = ["Yangi", "Rejalashtirilgan", "Jarayonda", "Tekshiruv", "Tugallandi", "To'lov kutilmoqda", "Yopilgan"];
 const TYPES = ["Maktab", "Bog'cha", "Uy", "IIB", "Korxona", "Do'kon", "Ombor", "Ofis", "Tashkilot", "Xususiy mijoz", "Birja-Tender", "Boshqa"];
@@ -679,3 +679,4 @@ export default function Objects() {
     </Modal>}
   </div>;
 }
+
