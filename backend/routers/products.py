@@ -83,7 +83,7 @@ def create_product(
         unit=product.get("unit", "dona"),
         warranty_month=warranty,
         supplier=product.get("supplier"),
-        note=product.get("note"),
+        description=product.get("note") or product.get("description"),
         is_active=True,
     )
 
