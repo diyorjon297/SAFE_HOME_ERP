@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const API = "http://127.0.0.1:8001";
+const API = "https://safe-home-erp.onrender.com";
 
 const sections = [
   "Kameralar",
@@ -644,7 +644,7 @@ export default function Warehouse() {
                 marginBottom: "12px",
               }}
             >
-              📦
+              рџ“¦
             </div>
 
             <h2
@@ -730,7 +730,7 @@ export default function Warehouse() {
                         }}
                       >
                         {product.brand || ""}
-                        {product.brand && product.model ? " • " : ""}
+                        {product.brand && product.model ? " вЂў " : ""}
                         {product.model || ""}
                       </div>
                     </div>
@@ -998,7 +998,7 @@ export default function Warehouse() {
                     fontSize: "20px",
                   }}
                 >
-                  ×
+                  Г—
                 </button>
               </div>
 

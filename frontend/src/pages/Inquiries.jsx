@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "http://127.0.0.1:8001";
+const API = "https://safe-home-erp.onrender.com";
 
 const emptyForm = {
   customer_id: "",
@@ -167,7 +167,7 @@ export default function Inquiries() {
 
   const deleteInquiry = async (id) => {
     const ok = window.confirm(
-      "Bu murojaatni o‘chirishni tasdiqlaysizmi?"
+      "Bu murojaatni oвЂchirishni tasdiqlaysizmi?"
     );
 
     if (!ok) return;
@@ -177,7 +177,7 @@ export default function Inquiries() {
       await loadInquiries();
     } catch (err) {
       console.error(err);
-      alert("O‘chirishda xatolik");
+      alert("OвЂchirishda xatolik");
     }
   };
 
@@ -384,7 +384,7 @@ export default function Inquiries() {
                 >
                   {customer.name}
                   {customer.phone
-                    ? ` — ${customer.phone}`
+                    ? ` вЂ” ${customer.phone}`
                     : ""}
                 </option>
               ))}
@@ -459,7 +459,7 @@ export default function Inquiries() {
               name="subject"
               value={form.subject}
               onChange={handleChange}
-              placeholder="Masalan: 4 ta kamera o‘rnatish kerak"
+              placeholder="Masalan: 4 ta kamera oвЂrnatish kerak"
               style={inputStyle}
             />
           </div>
@@ -491,7 +491,7 @@ export default function Inquiries() {
               name="object_name"
               value={form.object_name}
               onChange={handleChange}
-              placeholder="Uy, do‘kon, maktab..."
+              placeholder="Uy, doвЂkon, maktab..."
               style={inputStyle}
             />
           </div>
@@ -562,7 +562,7 @@ export default function Inquiries() {
               name="description"
               value={form.description}
               onChange={handleChange}
-              placeholder="Mijoz nima so‘radi..."
+              placeholder="Mijoz nima soвЂradi..."
               rows={3}
               style={{
                 ...inputStyle,
@@ -582,7 +582,7 @@ export default function Inquiries() {
               name="note"
               value={form.note}
               onChange={handleChange}
-              placeholder="Qo‘shimcha izoh"
+              placeholder="QoвЂshimcha izoh"
               rows={2}
               style={{
                 ...inputStyle,
@@ -619,7 +619,7 @@ export default function Inquiries() {
               ? "Saqlanmoqda..."
               : editingId
               ? "Saqlash"
-              : "Murojaat qo‘shish"}
+              : "Murojaat qoвЂshish"}
           </button>
         </div>
       </form>
@@ -645,7 +645,7 @@ export default function Inquiries() {
             fontSize: "17px",
           }}
         >
-          Murojaatlar ro‘yxati
+          Murojaatlar roвЂyxati
         </div>
 
         {inquiries.length === 0 ? (
@@ -656,7 +656,7 @@ export default function Inquiries() {
               color: "#9ca3af",
             }}
           >
-            Hozircha murojaatlar yo‘q
+            Hozircha murojaatlar yoвЂq
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -696,11 +696,11 @@ export default function Inquiries() {
                     </td>
 
                     <td style={tdStyle}>
-                      {item.phone || "—"}
+                      {item.phone || "вЂ”"}
                     </td>
 
                     <td style={tdStyle}>
-                      {item.inquiry_type || "—"}
+                      {item.inquiry_type || "вЂ”"}
                     </td>
 
                     <td style={tdStyle}>
@@ -708,7 +708,7 @@ export default function Inquiries() {
                     </td>
 
                     <td style={tdStyle}>
-                      {item.object_name || "—"}
+                      {item.object_name || "вЂ”"}
                     </td>
 
                     <td style={tdStyle}>
@@ -736,7 +736,7 @@ export default function Inquiries() {
                     </td>
 
                     <td style={tdStyle}>
-                      {item.responsible || "—"}
+                      {item.responsible || "вЂ”"}
                     </td>
 
                     <td style={tdStyle}>
@@ -761,7 +761,7 @@ export default function Inquiries() {
                           }
                           style={deleteButton}
                         >
-                          O‘chirish
+                          OвЂchirish
                         </button>
                       </div>
                     </td>
