@@ -1,3 +1,5 @@
+
+import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Box } from "@mui/material";
 
@@ -6,6 +8,7 @@ import Header from "../components/Header";
 
 export default function MainLayout() {
   const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const backgrounds = {
     "/": "#f1f5f9",
@@ -21,50 +24,52 @@ export default function MainLayout() {
     "/expenses": "#f8fafc",
     "/reports": "#f8fafc",
     "/settings": "#f8fafc",
+    "/objects": "#f8fafc",
+    "/employees": "#f8fafc",
   };
 
   const currentBackground =
     backgrounds[location.pathname] || "#f8fafc";
+
+  const closeMobileMenu = () => setMobileOpen(false);
 
   return (
     <Box
       sx={{
         display: "flex",
         width: "100%",
+        minWidth: 0,
         minHeight: "100vh",
+        overflowX: "clip",
         background: currentBackground,
       }}
     >
-      <Sidebar />
+      <Sidebar
+        mobileOpen={mobileOpen}
+        onClose={closeMobileMenu}
+      />
 
       <Box
         component="main"
         sx={{
           flex: 1,
+          width: 0,
           minWidth: 0,
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        <Header />
+        <Header
+          onMenuClick={() => setMobileOpen(true)}
+        />
 
         <Box
           sx={{
             flex: 1,
             width: "100%",
             minWidth: 0,
-            p: {
-              xs: 2,
-              sm: 2.5,
-              md: 3,
-              lg: 3.5,
-            },
-            pt: {
-              xs: 2,
-              sm: 2.5,
-              md: 3,
-            },
+            p: { xs: 1.5, sm: 2.5, md: 3, lg: 3.5 },
             boxSizing: "border-box",
           }}
         >
