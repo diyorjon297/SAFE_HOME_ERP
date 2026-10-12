@@ -639,3 +639,52 @@ button {
   }
 }
 
+
+/* SAFE HOME ERP — telefon uchun yakuniy moslash */
+@media (max-width: 768px) {
+  .erp-sidebar {
+    width: min(290px, 82vw) !important;
+    min-width: 0 !important;
+    height: 100dvh !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  .erp-header {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    padding: 10px;
+    gap: 6px;
+  }
+
+  .erp-header-left {
+    flex: 1;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .erp-header-title {
+    min-width: 0;
+  }
+
+  .erp-header-title h2 {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .erp-header-title p {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .erp-header-actions {
+    flex-shrink: 0;
+  }
+
+  .erp-header-logout {
+    padding: 9px;
+  }
+}
