@@ -178,7 +178,7 @@ def get_employees(
     employees = db.execute(text("""
         SELECT *
         FROM employees
-        ORDER BY active DESC, id DESC
+        ORDER BY is_active DESC, id DESC
     """)).mappings().all()
 
     result = []
